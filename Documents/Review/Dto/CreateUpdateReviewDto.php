@@ -7,10 +7,10 @@ namespace SED\Documents\Review\Dto;
 class CreateUpdateReviewDto
 {
 	public ?int $document_id;
-	public int $theme_id;
 	public string $content;
-    public ?string $portfolio;
-	public int $responsible_id;
+	public ?string $portfolio;
 	public array $receivers;
+	public ?int $tmp_doc_id;
+	public ?string $theme_title;
 	public int $user_id;
 }

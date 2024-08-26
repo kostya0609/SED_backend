@@ -29,9 +29,8 @@ abstract class BaseTransition
 		$this->historyService->create($history);
 
 		$document_dto = new UpdateDocumentDto();
-		$document_dto->number = $directive->number;
-		$document_dto->theme = $directive->theme->title;
-		$document_dto->executor_id = $directive->creator->user_id;
+		$document_dto->theme = $directive->theme;
+		$document_dto->initiator_id = $directive->creator->user_id;
 		$document_dto->status_title = $directive->status->title;
 		$this->documentService->update($directive->id, $directive->type_id, $document_dto);
 

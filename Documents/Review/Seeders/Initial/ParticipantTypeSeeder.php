@@ -11,7 +11,7 @@ class ParticipantTypeSeeder implements SeederInterface
 	{
 		$data = [
 			[
-				'id' => ParticipantType::RESPONSIBLE,
+				'id' => ParticipantType::INITIATOR,
 				'title' => 'Инициатор',
 			],
 			[

@@ -44,6 +44,6 @@ class AddActiveParticipantListener
 
 		$link = "[URL={$document_url}]$document->number[/URL]";
 
-		return "Вам на исполнение поступило Ознакомление {$link} от {$document->responsible->user->full_name}, пожалуйста примите решение.";
+		return "Вам на исполнение поступило Ознакомление {$link} от {$document->initiator->user->full_name}, пожалуйста примите решение.";
 	}
 }

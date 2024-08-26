@@ -2,8 +2,9 @@
 namespace SED\Documents\Directive\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use SED\DocumentRoutes\DocumentTemplate;
 use \App\Modules\Departments\Models\Department;
-use SED\Documents\Common\Models\{DocumentType, DocumentTheme};
+use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy};
 use SED\Documents\Directive\Enums\{ParticipantType, FileType, Status};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
 
@@ -14,13 +15,11 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property int $status_id
  * @property int $parent_id
  * @property int $content_id
- * @property int $theme_id
  * @property string $executed_at
  * @property int $process_template_id
  * @property int $department_id
  * @property \App\Modules\Departments\Models\Department $department
  * @property StatusModel $status
- * @property DocumentTheme $theme
  * @property Contents $contents
  * @property Participant $creator
  * @property Participant $author
@@ -28,6 +27,14 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property \Illuminate\Support\Collection $controllers
  * @property \Illuminate\Support\Collection $observers
  * @property \Illuminate\Support\Collection $mainFiles
+ * @property History $history
+ * @property ProcessHistory $processHistory
+ * @property DocumentType $type
+ * @property string $theme_title
+ * @property ?int $common_document_id
+ * @property ?int $tmp_doc_id
+ * @property Model $templateDocument
+ * @property ?string $theme
  */
 class Directive extends Model
 {
@@ -36,7 +43,6 @@ class Directive extends Model
 		'executed_at' => 'datetime',
 	];
 	protected $with = [
-		'theme',
 		'type',
 		'status',
 		'contents',
@@ -49,7 +55,10 @@ class Directive extends Model
 		'mainFiles',
 		'history',
 		'processHistory',
+		'templateDocument',
+		'hierarchy',
 	];
+	protected $appends = ['theme'];
 
 	public function type(): HasOne
 	{
@@ -59,11 +68,6 @@ class Directive extends Model
 	public function status(): HasOne
 	{
 		return $this->hasOne(StatusModel::class, 'id', 'status_id');
-	}
-
-	public function theme(): BelongsTo
-	{
-		return $this->belongsTo(DocumentTheme::class);
 	}
 
 	public function contents(): HasOne
@@ -126,6 +130,21 @@ class Directive extends Model
 	public function processHistory(): HasMany
 	{
 		return $this->hasMany(ProcessHistory::class, 'directive_id', 'id');
+	}
+
+	public function templateDocument(): BelongsTo
+	{
+		return $this->belongsTo(DocumentTemplate::class, 'tmp_doc_id');
+	}
+
+	public function hierarchy(): HasMany
+	{
+		return $this->hasMany(DocumentHierarchy::class, 'parent_document_id', 'common_document_id');
+	}
+
+	public function getThemeAttribute(): ?string
+	{
+		return $this->templateDocument ? $this->templateDocument->title : $this->theme_title;
 	}
 
 	public function isPreparation(): bool

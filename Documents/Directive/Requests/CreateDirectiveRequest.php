@@ -19,8 +19,6 @@ class CreateDirectiveRequest extends BaseRequest
 	public function rules(): array
 	{
 		return [
-			'theme_id' => 'required|integer',
-
 			'executed_at' => 'required|date',
 
 			'content' => 'required|string',
@@ -36,15 +34,15 @@ class CreateDirectiveRequest extends BaseRequest
 
 			'observers' => 'array',
 			'observers.*' => 'required|integer',
+
+			'tmp_doc_id' => 'required_without_all:theme_title|nullable|integer',
+			'theme_title' => 'required_without_all:tmp_doc_id|nullable|string',
 		];
 	}
 
 	public function messages(): array
 	{
 		return [
-			'theme_id.required' => 'Идентификатор темы не был передан!',
-			'theme_id.integer' => 'Идентификатор темы должен быть целым числом!',
-
 			'executed_at.date' => 'Поле исполнено должно быть датой!',
 
 			'content.required' => 'Содержание не было передано!',
@@ -62,6 +60,12 @@ class CreateDirectiveRequest extends BaseRequest
 			'controllers.*.integer' => 'Идентификатор контроллера должен быть целым числом!',
 
 			'observers.*.integer' => 'Идентификатор наблюдателя должен быть целым числом!',
+
+			'tmp_doc_id.integer' => 'Идентификатор шаблона документа должен быть целым числом!',
+			'theme_title.string' => 'Тема должна быть строкой!',
+
+			'tmp_doc_id.required_without_all' => 'Идентификатор шаблона документа и заголовок темы не были переданы!',
+            'theme_title.required_without_all' => 'Тема и идентификатор шаблона документа не были переданы!',
 		];
 	}
 }

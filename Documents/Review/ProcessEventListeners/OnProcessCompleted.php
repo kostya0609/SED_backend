@@ -19,6 +19,6 @@ class OnProcessCompleted
 
 		$link = "[URL={$document_url}]$review->number[/URL]";
 
-		NotificationFacade::sendFromBitrix($review->responsible->user_id, "Все участники ознакомились с документом {$link}.");
+		NotificationFacade::sendFromBitrix($review->initiator->user_id, "Все участники ознакомились с документом {$link}.");
 	}
 }

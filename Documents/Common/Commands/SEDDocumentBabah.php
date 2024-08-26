@@ -27,6 +27,9 @@ class SEDDocumentBabah extends Command
 		$this->info('Удаление таблиц модуля Ознакомление');
 		$this->call('sed-review:migrate', ['--remove' => true]);
 
+		$this->info('Удаление таблиц модуля ЭСЗ');
+		$this->call('sed-esz:migrate', ['--remove' => true]);
+
 		$this->info('Перезапуск общих миграций');
 		$this->call('sed-documents:rebuild');
 
@@ -35,5 +38,8 @@ class SEDDocumentBabah extends Command
 
 		$this->info('Перезапуск миграций модуля Ознакомление');
 		$this->call('sed-review:rebuild');
+
+		$this->info('Перезапуск миграций модуля ЭСЗ');
+		$this->call('sed-esz:rebuild');
 	}
 }

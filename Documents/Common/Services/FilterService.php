@@ -5,7 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class FilterService
 {
-    public function filter(array $filters, Model $model): Model
+    public function filter(array $filters, $model)
     {
         foreach ($filters as $key => $value) {
             switch ($value['type']) {

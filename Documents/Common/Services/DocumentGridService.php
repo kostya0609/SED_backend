@@ -43,7 +43,7 @@ class DocumentGridService
 				],
 				'executor' => [
 					[
-						'value' => $this->createLink($document->executor->full_name, $document->executor->link),
+						'value' => $this->createLink($document->initiator->full_name, $document->initiator->link),
 					],
 				],
 				'status_title' => [

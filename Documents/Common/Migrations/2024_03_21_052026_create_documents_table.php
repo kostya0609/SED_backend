@@ -18,7 +18,7 @@ return new class extends Migration {
 			$table->string('number');
 			$table->unsignedBigInteger('type_id');
 			$table->string('theme');
-			$table->unsignedBigInteger('executor_id');
+			$table->unsignedBigInteger('initiator_id');
 			$table->string('status_title');
 			$table->timestamps();
 

@@ -53,4 +53,10 @@ class ReviewController extends BaseController
 
         return $this->sendResponse($result);
     }
+
+    public function sendToApproval(GetByIdRequest $request)
+	{
+		$this->service->sendToApproval($request->document_id);
+		return $this->sendResponse();
+	}
 }

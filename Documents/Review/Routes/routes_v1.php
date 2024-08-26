@@ -10,5 +10,6 @@ Route::prefix('/sed/documents/review/v1')->group(function () {
         Route::post('/delete', ReviewController::class . '@delete');
         Route::post('/cancel', ReviewController::class . '@cancel');
         Route::post('/upload-files', ReviewController::class . '@uploadFiles');
+        Route::post('/send-to-approval', ReviewController::class . '@sendToApproval');
     });
 });

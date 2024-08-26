@@ -24,14 +24,13 @@ abstract class BaseTransition
 	{
 		$history = new CreateHistoryDto();
 		$history->review_id = $review->id;
-		$history->user_id = $review->responsible->user_id;
+		$history->user_id = $review->initiator->user_id;
 		$history->event = "Ознакомление переведено в статус \"{$review->status->title}\"";
 		$this->historyService->create($history);
 
 		$document_dto = new UpdateDocumentDto();
-		$document_dto->number = $review->number;
-		$document_dto->theme = $review->theme->title;
-		$document_dto->executor_id = $review->responsible->user_id;
+		$document_dto->theme = $review->theme;
+		$document_dto->initiator_id = $review->initiator->user_id;
 		$document_dto->status_title = $review->status->title;
 		$this->documentService->update($review->id, $review->type_id, $document_dto);
 

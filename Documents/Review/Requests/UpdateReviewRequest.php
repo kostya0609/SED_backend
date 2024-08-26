@@ -24,12 +24,10 @@ class UpdateReviewRequest extends BaseRequest
 
 			'content' => 'required|string',
 
-			'responsible_id' => 'required|integer',
+			'user_id' => 'required|integer',
 
             'receivers' => 'required|array',
             'receivers.*' => 'required|integer',
-
-			'user_id' => 'required|integer',
 		];
 	}
 
@@ -45,14 +43,11 @@ class UpdateReviewRequest extends BaseRequest
 			'content.required' => 'Содержание не было передано!',
 			'content.string' => 'Содержание должно быть строкой!',
 
-            'responsible_id.required' => 'Идентификатор инициатора не был передан!',
-            'responsible_id.integer' => 'Идентификатор инициатора должен быть целым числом!',
+            'user_id.required' => 'Идентификатор пользователя не был передан!',
+			'user_id.integer' => 'Идентификатор пользователя должен быть целым числом!',
 
             'receivers.required' => 'Идентификаторы получающих не были переданы!',
             'receivers.*.integer' => 'Идентификатор получающего должен быть целым числом!',
-
-			'user_id.required' => 'Идентификатор пользователя user_id не был передан!',
-            'user_id.integer' => 'Идентификатор пользователя user_id должен быть целым числом!',
         ];
 	}
 }

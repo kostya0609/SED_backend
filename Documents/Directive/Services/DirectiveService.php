@@ -13,6 +13,7 @@ use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Directive\Config\ExecutionProcessConfig;
 use SED\Documents\Directive\Dto\CreateHistoryDto;
 use SED\Documents\Directive\Dto\CreateUpdateDirectiveDto;
+use SED\Documents\Directive\Dto\GetByIdDirectiveDto;
 use SED\Documents\Directive\Enums\FileType;
 use SED\Documents\Directive\Enums\ParticipantType;
 use SED\Documents\Directive\Enums\Status;
@@ -26,12 +27,18 @@ class DirectiveService
 	protected DocumentService $documentService;
 	protected HistoryService $historyService;
 	protected ChangeRequestToInWork $changeRequestToInWork;
+	protected VerificationService $verificationService;
 
-	public function __construct(DocumentService $documentService, HistoryService $historyService, ChangeRequestToInWork $changeRequestToInWork)
-	{
+	public function __construct(
+		DocumentService $documentService,
+		HistoryService $historyService,
+		ChangeRequestToInWork $changeRequestToInWork,
+		VerificationService $verificationService
+	) {
 		$this->documentService = $documentService;
 		$this->historyService = $historyService;
 		$this->changeRequestToInWork = $changeRequestToInWork;
+		$this->verificationService = $verificationService;
 	}
 
 	public function create(CreateUpdateDirectiveDto $dto): Directive
@@ -42,11 +49,18 @@ class DirectiveService
 			$directive->status_id = Status::PREPARATION;
 			$directive->executed_at = $dto->executed_at;
 			$directive->type_id = DocumentType::DIRECTIVE;
-			$directive->theme_id = $dto->theme_id;
 			$directive->process_template_id = ExecutionProcessConfig::getTemplateId();
 			$directive->department_id = $department->id;
-			$directive->save();
 
+			if (isset($dto->tmp_doc_id)) {
+				$directive->tmp_doc_id = $dto->tmp_doc_id;
+			} else if (isset($dto->theme_title)) {
+				$directive->theme_title = $dto->theme_title;
+			} else {
+				throw new \LogicException('Тема документа не была передана!');
+			}
+
+			$directive->save();
 
 			$contents = new Contents(['content' => $dto->content, 'portfolio' => $dto->portfolio]);
 			$directive->contents()->save($contents);
@@ -94,10 +108,11 @@ class DirectiveService
 			$document_dto->document_id = $directive->id;
 			$document_dto->number = $directive->number;
 			$document_dto->type_id = $directive->type_id;
-			$document_dto->theme = $directive->theme->title;
-			$document_dto->executor_id = $directive->creator->user_id;
+			$document_dto->theme = $directive->theme;
+			$document_dto->initiator_id = $directive->creator->user_id;
 			$document_dto->status_title = $directive->status->title;
-			$this->documentService->create($document_dto);
+			$document_dto->participants = $this->getDocumentParticipants($directive->id);
+			$common_document = $this->documentService->create($document_dto);
 
 			$history = new CreateHistoryDto();
 			$history->directive_id = $directive->id;
@@ -114,11 +129,14 @@ class DirectiveService
 				)
 			);
 
+			$directive->common_document_id = $common_document->id;
+			$directive->save();
+
 			return $directive->fresh();
 		});
 	}
 
-	public function getById(int $id, int $user_id): Directive
+	public function getById(int $id, int $user_id): GetByIdDirectiveDto
 	{
 		$directive = Directive::find($id);
 
@@ -126,14 +144,17 @@ class DirectiveService
 			throw new \Exception("Не удалось найти поручение по id $id");
 		}
 
-		if (!VerificationService::checkAccess($user_id, $directive)) {
+		if (!$this->verificationService->checkAccess($user_id, $directive, $this->getDocumentParticipants($id))) {
 			throw new \Exception("Нет доступа к поручению!");
 		}
 
+		$document_rights = collect([]);
 
-		$directive->full_access = (bool) VerificationService::checkFullAccess($user_id, $directive);
+		if ((bool) $this->verificationService->getDocumentFullAccess($user_id, $directive->creator->user_id, $directive->author->user_id)) {
+			$document_rights->push('document_full_access');
+		}
 
-		return $directive;
+		return new GetByIdDirectiveDto($directive, $document_rights);
 	}
 
 	public function findById(int $document_id): Directive
@@ -151,7 +172,6 @@ class DirectiveService
 	{
 		return \DB::transaction(function () use ($dto): Directive {
 			$directive = Directive::find($dto->document_id);
-			$department = DepartmentFacade::getByUserId($directive->creator->user_id);
 
 			if (!$directive) {
 				throw new \LogicException("Не удалось найти поручение по id $dto->document_id");
@@ -164,19 +184,8 @@ class DirectiveService
 			$directive->executed_at = $dto->executed_at;
 			$directive->contents->content = $dto->content;
 			$directive->contents->portfolio = $dto->portfolio;
-			$directive->theme_id = $dto->theme_id;
-
 			$directive->author->user_id = $dto->author_id;
-
-			$directive->number = $this->documentService->generateDocumentNumber(
-				$directive->id,
-				DocumentType::DIRECTIVE,
-				$department->abbreviation,
-			);
-
 			$directive->save();
-
-			$directive->theme()->associate($dto->theme_id);
 
 			$directive->executors()->delete();
 			$directive->controllers()->delete();
@@ -206,10 +215,10 @@ class DirectiveService
 			$directive->push();
 
 			$document_dto = new UpdateDocumentDto();
-			$document_dto->number = $directive->number;
-			$document_dto->theme = $directive->theme->title;
-			$document_dto->executor_id = $directive->creator->user_id;
+			$document_dto->theme = $directive->theme;
+			$document_dto->initiator_id = $directive->creator->user_id;
 			$document_dto->status_title = $directive->status->title;
+			$document_dto->participants = $this->getDocumentParticipants($directive->id);
 			$this->documentService->update($directive->id, $directive->type_id, $document_dto);
 
 			$history = new CreateHistoryDto();
@@ -217,8 +226,6 @@ class DirectiveService
 			$history->user_id = $directive->creator->user_id;
 			$history->event = "Поручение обновлено";
 			$this->historyService->create($history);
-
-			$directive->full_access = (bool) VerificationService::checkFullAccess($dto->user_id, $directive->creator->user_id);
 
 			return $directive->fresh();
 		});
@@ -243,8 +250,8 @@ class DirectiveService
 				ProcessFacade::deleteByDocumentIdAndTemplateId($id, $directive->process_template_id);
 			}
 
-			$this->documentService->delete($directive->id, $directive->type_id);
 			$directive->delete();
+			$this->documentService->delete($directive->id, $directive->type_id);
 		});
 	}
 
@@ -293,8 +300,17 @@ class DirectiveService
 		$directive = $this->changeRequestToInWork->handle($directive);
 
 		$directive = $directive->fresh();
-		$directive->full_access = (bool) VerificationService::checkFullAccess($user_id, $directive->creator->user_id);
 
 		return $directive;
+	}
+
+	public function getDocumentParticipants(int $document_id): array
+	{
+		return Participant::query()
+			->where('directive_id', $document_id)
+			->get()
+			->pluck('user_id')
+			->values()
+			->toArray();
 	}
 }

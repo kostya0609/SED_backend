@@ -17,6 +17,7 @@ class OnProcessCreated
 			$process->id,
 			DecideProcessConfig::getDecideGroupId(),
 			$service->getReceivers($document_id)->toArray(),
+			false
 		);
 	}
 }

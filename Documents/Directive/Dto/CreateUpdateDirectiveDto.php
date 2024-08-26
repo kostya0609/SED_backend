@@ -4,7 +4,6 @@ namespace SED\Documents\Directive\Dto;
 class CreateUpdateDirectiveDto
 {
 	public ?int $document_id;
-	public int $theme_id;
 	public string $executed_at;
 	public string $content;
 	public ?string $portfolio;
@@ -14,4 +13,6 @@ class CreateUpdateDirectiveDto
 	public array $controllers = [];
 	public array $observers = [];
 	public int $user_id;
+	public ?int $tmp_doc_id;
+	public ?string $theme_title;
 }

@@ -4,7 +4,7 @@ namespace SED\Documents\Review;
 use SED\Common\Services\BaseServiceProvider;
 use SED\Documents\Review\Commands\{
 	ReviewMigrate,
-	ReviewRebuild,
+	ReviewRebuildCommand,
 	ReviewTestSeederCommand,
 	ReviewInitialSeederCommand
 };
@@ -19,7 +19,7 @@ class ReviewServiceProvider extends BaseServiceProvider
 		ReviewMigrate::class,
 		ReviewInitialSeederCommand::class,
 		ReviewTestSeederCommand::class,
-		ReviewRebuild::class,
+		ReviewRebuildCommand::class,
 	];
 
 	/**

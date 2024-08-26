@@ -26,7 +26,7 @@ class UpdateDirectiveRequest extends BaseRequest
 			'executed_at' => 'required|date',
 
 			'content' => 'required|string',
-			'portfolio' => 'required|string',
+			'portfolio' => 'nullable|string',
 
 			'creator_id' => 'required|integer',
 			'author_id' => 'required|integer',
@@ -58,7 +58,6 @@ class UpdateDirectiveRequest extends BaseRequest
 			'content.required' => 'Содержание не было передано!',
 			'content.string' => 'Содержание должно быть строкой!',
 
-			'portfolio.required' => 'Описание портфеля не было передано!',
 			'portfolio.string' => 'Описание портфеля должно быть строкой!',
 
 			'creator_id.required' => 'Идентификатор создателя не был передан!',

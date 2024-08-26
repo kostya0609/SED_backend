@@ -32,7 +32,7 @@ class DocumentController extends BaseController
 		if ($dto->sort === 'type') {
 			$dto->sort = 'type_id';
 		}
-		
+
 		$dto->limit = $request->count;
 		$dto->offset = ($request->page - 1) * $dto->limit;
 		$dto->filters = $request->input('filter', []);
@@ -40,28 +40,6 @@ class DocumentController extends BaseController
 
 		$documents = $this->service->getAll($dto);
 		$documents->items = $this->documentGridService->toGrid($documents->items);
-
-		return $this->sendResponse($documents);
-	}
-
-	public function getAllV2(Request $request)
-	{
-		// TODO: Добавить валидацию
-		$dto = new FilterDocumentsDto();
-
-		$dto->order = $request->sort['order'] ?: 'asc';
-		$dto->sort = $request->sort['name'] ?: 'id';
-
-		if ($dto->sort === 'type') {
-			$dto->sort = 'type_id';
-		}
-		
-		$dto->limit = $request->count;
-		$dto->offset = ($request->page - 1) * $dto->limit;
-		$dto->filters = $request->input('filter', []);
-		$dto->user_id = $request->input('user_id');
-
-		$documents = $this->service->getAll($dto);
 
 		return $this->sendResponse($documents);
 	}
@@ -77,7 +55,7 @@ class DocumentController extends BaseController
 		if ($dto->sort === 'type') {
 			$dto->sort = 'type_id';
 		}
-		
+
 		$dto->limit = $request->count;
 		$dto->offset = ($request->page - 1) * $dto->limit;
 		$dto->filters = $request->input('filter', []);
@@ -96,5 +74,27 @@ class DocumentController extends BaseController
 		return $this->sendResponse([
 			'count' => $count,
 		]);
+	}
+
+	public function searchByNumber(Request $request)
+	{
+		$validated = (object) $request->validate([
+			'query' => 'string',
+		]);
+
+		$documents = $this->service->searchByNumber($validated->query);
+
+		return $this->sendResponse($documents);
+	}
+
+	public function searchByTheme(Request $request)
+	{
+		$validated = (object) $request->validate([
+			'query' => 'string',
+		]);
+
+		$documents = $this->service->searchByTheme($validated->query);
+
+		return $this->sendResponse($documents);
 	}
 }
