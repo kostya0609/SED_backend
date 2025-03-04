@@ -26,6 +26,7 @@ class InWorkToControl extends BaseTransition
 
 			$directive->process_template_id = ExecutionControlProcessConfig::getTemplateId();
 			$directive->status_id = Status::EXECUTION_CONTROL;
+			$directive->execution_control_date = \Carbon\Carbon::now()->toDateTimeString();
 			$directive->save();
 
 			return parent::execute($directive);

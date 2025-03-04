@@ -10,22 +10,29 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ProcessHistory extends Model
 {
-    protected $table = 'l_directive_process_history';
-    protected $fillable = [
-        'event',
-        'comment',
-        'user_id',
-        'directive_id',
-    ];
-    protected $with = ['user', 'files'];
+	protected $table = 'l_directive_process_history';
+	protected $fillable = [
+		'event',
+		'comment',
+		'user_id',
+		'subuser_id',
+		'directive_id',
+		'process_template_name',
+	];
+	protected $with = ['user', 'subuser', 'files'];
 
-    public function user(): HasOne
-    {
-        return $this->hasOne(User::class, 'ID', 'user_id');
-    }
+	public function user(): HasOne
+	{
+		return $this->hasOne(User::class, 'ID', 'user_id');
+	}
 
-    public function files(): BelongsToMany
-    {
-        return $this->belongsToMany(File::class, 'l_directive_process_history_files', 'history_id', 'file_id');
-    }
+	public function subuser(): HasOne
+	{
+		return $this->hasOne(User::class, 'ID', 'subuser_id');
+	}
+
+	public function files(): BelongsToMany
+	{
+		return $this->belongsToMany(File::class, 'l_directive_process_history_files', 'history_id', 'file_id');
+	}
 }

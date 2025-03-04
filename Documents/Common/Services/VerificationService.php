@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Builder;
 use SED\Common\Config\SEDConfig;
 use App\Modules\Roles\Enums\DynamicRole;
 use App\Modules\Accesses\Actions\GetAction;
+use SED\Documents\Common\Enums\DocumentType;
 use SED\Documents\Common\Models\Participant;
 use SED\Documents\ESZ\Config\ESZConfig;
 use SED\Documents\Review\Config\ReviewConfig;
@@ -32,8 +33,6 @@ class VerificationService
 
 		$initiator_ids = array_unique($initiator_ids);
 
-		$document_ids_from_process = $this->getDocumentIdsFromProcess($user_id);
-
 		$user_document_ids = Participant::query()
 			->select(['document_id'])
 			->distinct()
@@ -47,22 +46,30 @@ class VerificationService
 		$document_ids = array_unique($document_ids);
 
 		$model = $model
-			->where(function (Builder $query) use ($initiator_ids, $document_ids_from_process, $document_ids) {
+			->where(function (Builder $query) use ($initiator_ids, $user_id, $document_ids) {
 				$query
 					->orWhereIn('initiator_id', $initiator_ids)
-					->orWhereIn('document_id', $document_ids_from_process)
+					->orWhere(function (Builder $query) use ($user_id) {
+						$query
+							->where(function (Builder $query) use ($user_id) {
+								$query
+									->where('type_id', DocumentType::DIRECTIVE)
+									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(DirectiveConfig::getModuleName(), $user_id)->values()->toArray());
+							})
+							->orWhere(function (Builder $query) use ($user_id) {
+								$query
+									->where('type_id', DocumentType::REVIEW)
+									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(ReviewConfig::getModuleName(), $user_id)->values()->toArray());
+							})
+							->orWhere(function (Builder $query) use ($user_id) {
+								$query
+									->where('type_id', DocumentType::ESZ)
+									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(ESZConfig::getModuleName(), $user_id)->values()->toArray());
+							});
+					})
 					->orWhereIn('id', $document_ids);
 			});
 
 		return $model;
-	}
-
-	private function getDocumentIdsFromProcess(int $user_id): array
-	{
-		return array_merge(
-			ParticipantFacade::getParticipantDocumentIds(DirectiveConfig::getModuleName(), $user_id)->values()->toArray(),
-			ParticipantFacade::getParticipantDocumentIds(ReviewConfig::getModuleName(), $user_id)->values()->toArray(),
-			ParticipantFacade::getParticipantDocumentIds(ESZConfig::getModuleName(), $user_id)->values()->toArray(),
-		);
 	}
 }

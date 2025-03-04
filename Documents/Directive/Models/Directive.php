@@ -1,12 +1,13 @@
 <?php
 namespace SED\Documents\Directive\Models;
 
+use \Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use SED\DocumentRoutes\DocumentTemplate;
 use \App\Modules\Departments\Models\Department;
-use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy};
 use SED\Documents\Directive\Enums\{ParticipantType, FileType, Status};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
+use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy, Document, DocumentHierarchyTree};
 
 /**
  * @property int $id
@@ -18,11 +19,13 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property string $executed_at
  * @property int $process_template_id
  * @property int $department_id
+ * @property string $execution_control_date
+ * @property ?int $tmp_doc_id
  * @property \App\Modules\Departments\Models\Department $department
  * @property StatusModel $status
  * @property Contents $contents
  * @property Participant $creator
- * @property Participant $author
+ * @property ?Participant $author
  * @property \Illuminate\Support\Collection $executors
  * @property \Illuminate\Support\Collection $controllers
  * @property \Illuminate\Support\Collection $observers
@@ -33,14 +36,19 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property string $theme_title
  * @property ?int $common_document_id
  * @property ?int $tmp_doc_id
- * @property Model $templateDocument
+ * @property DocumentTemplate $templateDocument
  * @property ?string $theme
+ * @property Document $commonDocument
+ * @property DocumentHierarchy $documentHierarchy
+ * @property DocumentHierarchy $parent_document
+ * @property Collection $hierarchy
  */
 class Directive extends Model
 {
 	protected $table = 'l_directive';
 	protected $casts = [
 		'executed_at' => 'datetime',
+		'execution_control_date' => 'datetime',
 	];
 	protected $with = [
 		'type',
@@ -56,9 +64,9 @@ class Directive extends Model
 		'history',
 		'processHistory',
 		'templateDocument',
-		'hierarchy',
 	];
-	protected $appends = ['theme'];
+	protected $appends = ['theme', 'parent_document', 'hierarchy'];
+	protected $hidden = ['documentHierarchy', 'theme_title'];
 
 	public function type(): HasOne
 	{
@@ -147,6 +155,42 @@ class Directive extends Model
 		return $this->templateDocument ? $this->templateDocument->title : $this->theme_title;
 	}
 
+	public function commonDocument(): BelongsTo
+	{
+		return $this->belongsTo(Document::class, 'common_document_id');
+	}
+
+	public function documentHierarchy(): HasOne
+	{
+		return $this->hasOne(DocumentHierarchy::class, 'document_id', 'common_document_id');
+	}
+
+	public function getParentDocumentAttribute(): ?Document
+	{
+		if ($this->documentHierarchy && $this->documentHierarchy->parentDocument) {
+			return $this->documentHierarchy->parentDocument->commonDocument;
+		}
+
+		return null;
+	}
+
+	public function getHierarchyAttribute(): Collection
+	{
+		$start_document_id = $this->documentHierarchy ? $this->documentHierarchy->start_document_id : null;
+
+		if (!$start_document_id) {
+			return collect([]);
+		}
+
+		$hierarchy = DocumentHierarchyTree::firstWhere('start_document_id', $start_document_id);
+
+		if (!$hierarchy) {
+			return collect([]);
+		}
+
+		return collect([$hierarchy]);
+	}
+
 	public function isPreparation(): bool
 	{
 		return $this->status_id === Status::PREPARATION;
@@ -174,5 +218,10 @@ class Directive extends Model
 	public function isArchiveCancelled(): bool
 	{
 		return $this->status_id === Status::ARCHIVE_CANCELLED;
+	}
+
+	public function isDraft(): bool
+	{
+		return $this->status_id === Status::DRAFT;
 	}
 }

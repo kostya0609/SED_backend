@@ -4,6 +4,9 @@ namespace SED\DocumentRoutes\Seeders\Initial;
 use SED\DocumentRoutes\Features\Routes\Models\Direction;
 use SED\DocumentRoutes\Seeders\SeederInterface;
 
+/**
+ * @deprecated Напрвления больше не используются
+ */
 class DirectionSeeder implements SeederInterface
 {
 	function run()

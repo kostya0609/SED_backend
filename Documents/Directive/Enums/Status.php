@@ -9,4 +9,5 @@ class Status
 	public const EXECUTION_CONTROL = 4;
 	public const ARCHIVE_WORKED = 5;
 	public const ARCHIVE_CANCELLED = 6;
+	public const DRAFT = 7;
 }

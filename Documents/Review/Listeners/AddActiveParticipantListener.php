@@ -3,6 +3,7 @@ namespace SED\Documents\Review\Listeners;
 
 use App\Modules\Notification\Facades\NotificationFacade;
 use App\Modules\Processes\Events\AddedActiveParticipant;
+use SED\Common\Config\SEDConfig;
 use SED\Documents\Review\Config\DecideProcessConfig;
 use SED\Documents\Review\Models\Review;
 use SED\Documents\Review\Services\ReviewService;
@@ -35,7 +36,7 @@ class AddActiveParticipantListener
 		$document = $this->service->findById($process->document_id);
 		$user_ids = $event->getParticipants()->map(fn($participant): int => $participant->user_id);
 
-		NotificationFacade::sendFromBitrix($user_ids, $this->createMessage($document));
+		NotificationFacade::send(SEDConfig::getNotificationSender(), $user_ids, $this->createMessage($document));
 	}
 
 	protected function createMessage(Review $document): string

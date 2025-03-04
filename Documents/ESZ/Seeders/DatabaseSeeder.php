@@ -16,7 +16,7 @@ abstract class DatabaseSeeder implements SeederInterface
 	{
 		foreach ($classes as $class) {
 			if (!is_a($class, SeederInterface::class, true)) {
-				throw new \Exception($class . ' не соответствует интерфейсу ' . SeederInterface::class);
+				throw new \LogicException($class . ' не соответствует интерфейсу ' . SeederInterface::class);
 			}
 
 			App::make($class)->run();

@@ -17,7 +17,7 @@ abstract class BaseTransition
 		$this->historyService = $historyService;
 		$this->documentService = $documentService;
 	}
-	
+
 	abstract public function handle(Review $review): Review;
 
 	protected function execute(Review $review)
@@ -32,6 +32,7 @@ abstract class BaseTransition
 		$document_dto->theme = $review->theme;
 		$document_dto->initiator_id = $review->initiator->user_id;
 		$document_dto->status_title = $review->status->title;
+		$document_dto->status_id = $review->status->id;
 		$this->documentService->update($review->id, $review->type_id, $document_dto);
 
 		return $review;

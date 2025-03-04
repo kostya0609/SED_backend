@@ -1,27 +1,33 @@
 <?php
 namespace SED\Report;
 
-use Illuminate\Support\ServiceProvider;
+use SED\Common\Services\BaseServiceProvider;
+use SED\Report\Commands\SEDReportMigrate;
 
-class ReportServiceProvider extends ServiceProvider
+class ReportServiceProvider extends BaseServiceProvider
 {
-    /**
-     * Register services.
-     *
-     * @return void
-     */
-    public function register()
-    {
-        //
-    }
+	protected array $commands = [
+		SEDReportMigrate::class,
+	];
 
-    /**
-     * Bootstrap services.
-     *
-     * @return void
-     */
-    public function boot()
-    {
-        //
-    }
+	/**
+	 * Register services.
+	 *
+	 * @return void
+	 */
+	public function register()
+	{
+		//
+	}
+
+	/**
+	 * Bootstrap services.
+	 *
+	 * @return void
+	 */
+	public function boot()
+	{
+		$this->loadRoutesFrom(__DIR__ . '/Routes/routes_v1.php');
+		$this->commands($this->commands);
+	}
 }

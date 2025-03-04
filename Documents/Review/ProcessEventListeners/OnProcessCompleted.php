@@ -2,6 +2,7 @@
 namespace SED\Documents\Review\ProcessEventListeners;
 
 use App\Modules\Processes\Events\ProcessCompleted;
+use SED\Common\Config\SEDConfig;
 use SED\Documents\Review\Services\ReviewService;
 use SED\Documents\Review\Transitions\ReviewToArchiveWorked;
 use App\Modules\Notification\Facades\NotificationFacade;
@@ -19,6 +20,6 @@ class OnProcessCompleted
 
 		$link = "[URL={$document_url}]$review->number[/URL]";
 
-		NotificationFacade::sendFromBitrix($review->initiator->user_id, "Все участники ознакомились с документом {$link}.");
+		NotificationFacade::send(SEDConfig::getNotificationSender(), $review->initiator->user_id, "Все участники ознакомились с документом {$link}.");
 	}
 }

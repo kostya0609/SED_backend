@@ -12,12 +12,12 @@ class ESZStatusSeeder implements SeederInterface
 		$data = [
 			[
 				'id' => Status::PREPARATION,
-				'title' => 'Подготовка, на подготовке',
+				'title' => 'Подготовка',
 			],
 
 			[
 				'id' => Status::FIX,
-				'title' => 'Устранение замечний',
+				'title' => 'Устранение замечаний',
 			],
 
 			[
@@ -28,7 +28,7 @@ class ESZStatusSeeder implements SeederInterface
 
 			[
 				'id' => Status::FIX_SIGNING,
-				'title' => 'Устранение замечний на подписании',
+				'title' => 'Устранение замечаний на подписании',
 			],
 
 
@@ -39,7 +39,7 @@ class ESZStatusSeeder implements SeederInterface
 
 			[
 				'id' => Status::FIX_RESOLUTION,
-				'title' => 'Устранение замечний на резолюции',
+				'title' => 'Устранение замечаний на резолюции',
 			],
 
 			[
@@ -55,6 +55,10 @@ class ESZStatusSeeder implements SeederInterface
 			[
 				'id' => Status::ARCHIVE_CANCELLED,
 				'title' => 'Архив. Аннулировано',
+			],
+			[
+				'id' => Status::DRAFT,
+				'title' => 'Черновик',
 			],
 		];
 

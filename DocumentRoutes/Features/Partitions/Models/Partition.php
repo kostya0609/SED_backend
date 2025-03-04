@@ -8,13 +8,17 @@ use SED\DocumentRoutes\Features\Routes\Models\Route;
 class Partition extends Model
 {
 	protected $table = 'l_route_partitions';
-	public $timestamps = false;
+	
+	protected $casts = [
+		'is_active' => 'boolean',
+	];
+	
 	protected $fillable = [
 		'parent_id',
 		'title',
-	];
-	protected $with = [
-		'children',
+		'creator',
+		'lastEditor',
+		'is_active'
 	];
 
 	public function children(): HasMany

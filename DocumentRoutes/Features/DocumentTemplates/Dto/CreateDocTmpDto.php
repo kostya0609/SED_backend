@@ -5,9 +5,13 @@ namespace SED\DocumentRoutes\Features\DocumentTemplates\Dto;
 class CreateDocTmpDto
 {
 	public string $title;
-	public ?int $parent_id;
+
+	/**
+	 * @var int[]
+	 */
+	public array $parents;
 	public int $route_id;
-	public int $type_id;	
+	public int $type_id;
 	public array $data;
 	public bool $is_start;
 	public bool $is_active;

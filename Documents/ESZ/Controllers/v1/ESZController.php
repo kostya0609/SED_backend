@@ -4,7 +4,7 @@ namespace SED\Documents\ESZ\Controllers\v1;
 use Illuminate\Http\Request;
 use SED\Common\Requests\GetByIdRequest;
 use SED\Common\Controllers\BaseController;
-use SED\Documents\ESZ\Requests\{CreateESZRequest, UpdateESZRequest};
+use SED\Documents\ESZ\Requests\{PreCreateESZRequest, UpdateESZRequest};
 use SED\Documents\ESZ\Services\ESZService;
 
 class ESZController extends BaseController
@@ -16,9 +16,9 @@ class ESZController extends BaseController
 		$this->service = $service;
 	}
 
-	public function create(CreateESZRequest $request)
+	public function preCreate(PreCreateESZRequest $request)
 	{
-		$esz = $this->service->create($request->createDto());
+		$esz = $this->service->preCreate($request->createDto());
 		return $this->sendResponse($esz);
 	}
 
@@ -49,13 +49,19 @@ class ESZController extends BaseController
 
 	public function sendToApproval(GetByIdRequest $request)
 	{
-		$this->service->sendToApproval($request->document_id);
-		return $this->sendResponse();
+		$esz = $this->service->sendToApproval($request->document_id);
+		return $this->sendResponse($esz);
 	}
 
 	public function cancellation(GetByIdRequest $request)
 	{
 		$esz = $this->service->cancellation($request->document_id, $request->user_id);
+		return $this->sendResponse($esz);
+	}
+
+	public function sendToSignatory(GetByIdRequest $request)
+	{
+		$esz = $this->service->sendToSignatory($request->document_id, $request->user_id);
 		return $this->sendResponse($esz);
 	}
 }

@@ -12,4 +12,9 @@ class ExecutionControlProcessConfig
 	{
 		return \Config::get('DIRECTIVE_EXECUTION_CONTROL_PROCESS_GROUP_ID');
 	}
+
+	public static function getReturnToExecutorActionId(): int
+	{
+		return \Config::get('DIRECTIVE_EXECUTION_CONTROL_RETURN_TO_EXECUTOR_ACTION_ID');
+	}
 }

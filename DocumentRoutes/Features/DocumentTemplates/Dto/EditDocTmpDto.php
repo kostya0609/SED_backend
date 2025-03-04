@@ -6,7 +6,11 @@ class EditDocTmpDto
 {
 	public int $id;
 	public string $title;
-	public ?int $parent_id;
+
+	/**
+	 * @var int[]
+	 */
+	public array $parents;
 	public int $route_id;
 	public int $type_id;	
 	public array $data;

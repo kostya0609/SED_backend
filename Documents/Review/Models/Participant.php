@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasOne};
 
 
 /**
+ * @property int $id
  * @property int $review_id
  * @property int $type_id
  * @property int $user_id
+ * @property bool $can_deletable
  * @property User $user
  * @property ParticipantTypeModel $type
  */
@@ -20,9 +22,14 @@ class Participant extends Model
 	public $fillable = [
 		'type_id',
 		'user_id',
+		'can_deletable',
 	];
 
     protected $with = ['user'];
+
+	protected $casts = [
+		'can_deletable' => 'boolean',
+	];
 
 	public function user(): BelongsTo
 	{

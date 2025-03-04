@@ -1,12 +1,13 @@
 <?php
 namespace SED\Documents\ESZ\Models;
 
+use \Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use SED\DocumentRoutes\DocumentTemplate;
 use \App\Modules\Departments\Models\Department;
-use SED\Documents\Common\Models\{DocumentType, Document};
 use SED\Documents\ESZ\Enums\{ParticipantType, FileType, Status};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
+use SED\Documents\Common\Models\{DocumentType, Document, DocumentHierarchy, DocumentHierarchyTree};
 
 /**
  * @property int $id
@@ -18,12 +19,14 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property int $content_id
  * @property int $process_template_id
  * @property int $department_id
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
  * @property \App\Modules\Departments\Models\Department $department
  * @property StatusModel $prevStatus
  * @property StatusModel $status
  * @property Contents $contents
  * @property Participant $initiator
- * @property Participant $signatory
+ * @property ?Participant $signatory
  * @property \Illuminate\Support\Collection $receivers
  * @property \Illuminate\Support\Collection $observers
  * @property \Illuminate\Support\Collection $mainFiles
@@ -34,9 +37,12 @@ use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
  * @property string $theme_title
  * @property ?int $common_document_id
  * @property ?int $tmp_doc_id
- * @property Model $templateDocument
+ * @property DocumentTemplate $templateDocument
  * @property ?string $theme
  * @property Document $commonDocument
+ * @property DocumentHierarchy $documentHierarchy
+ * @property DocumentHierarchy $parent_document
+ * @property Collection $hierarchy
  */
 class Esz extends Model
 {
@@ -54,7 +60,8 @@ class Esz extends Model
 		'history',
 		'processHistory',
 	];
-	protected $appends = ['theme'];
+	protected $appends = ['theme', 'parent_document', 'hierarchy'];
+	protected $hidden = ['documentHierarchy', 'theme_title'];
 
 	public function type(): BelongsTo
 	{
@@ -101,8 +108,7 @@ class Esz extends Model
 	{
 		return $this
 			->hasOne(Participant::class)
-			->where('type_id', ParticipantType::INITIATOR)
-			->withDefault(['type_id' => ParticipantType::INITIATOR]);
+			->where('type_id', ParticipantType::INITIATOR);
 	}
 
 	public function signatory(): HasOne
@@ -110,7 +116,7 @@ class Esz extends Model
 		return $this
 			->hasOne(Participant::class)
 			->where('type_id', ParticipantType::SIGNATORY)
-			->withDefault(['type_id' => ParticipantType::SIGNATORY]);
+			->whereHas('user');
 	}
 
 	public function receivers(): HasMany
@@ -127,6 +133,11 @@ class Esz extends Model
 			->where('type_id', ParticipantType::OBSERVERS);
 	}
 
+	public function participants(): HasMany
+	{
+		return $this->hasMany(Participant::class);
+	}
+
 	public function history(): HasMany
 	{
 		return $this->hasMany(History::class);
@@ -139,7 +150,7 @@ class Esz extends Model
 
 	public function templateDocument(): BelongsTo
 	{
-		return $this->belongsTo(DocumentTemplate::class, 'tmp_doc_id');
+		return $this->belongsTo(DocumentTemplate::class, 'tmp_doc_id')->with('children');
 	}
 
 	public function getThemeAttribute(): ?string
@@ -150,6 +161,37 @@ class Esz extends Model
 	public function commonDocument(): HasOne
 	{
 		return $this->hasOne(Document::class, 'id', 'common_document_id');
+	}
+
+	public function documentHierarchy(): HasOne
+	{
+		return $this->hasOne(DocumentHierarchy::class, 'document_id', 'common_document_id');
+	}
+
+	public function getParentDocumentAttribute(): ?Document
+	{
+		if ($this->documentHierarchy && $this->documentHierarchy->parentDocument) {
+			return $this->documentHierarchy->parentDocument->commonDocument;
+		}
+
+		return null;
+	}
+
+	public function getHierarchyAttribute(): Collection
+	{
+		$start_document_id = $this->documentHierarchy ? $this->documentHierarchy->start_document_id : null;
+
+		if (!$start_document_id) {
+			return collect([]);
+		}
+
+		$hierarchy = DocumentHierarchyTree::firstWhere('document_id', $start_document_id);
+
+		if (!$hierarchy) {
+			return collect([]);
+		}
+
+		return collect([$hierarchy]);
 	}
 
 
@@ -196,5 +238,10 @@ class Esz extends Model
 	public function isArchiveCancelled(): bool
 	{
 		return $this->status_id === Status::ARCHIVE_CANCELLED;
+	}
+
+	public function isDraft(): bool
+	{
+		return $this->status_id === Status::DRAFT;
 	}
 }

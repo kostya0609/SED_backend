@@ -10,7 +10,8 @@ use SED\Documents\Common\Commands\{
 	SEDDocumentsSeeder,
 	SEDDocumentsTestSeeder,
 	SEDDocumentsRebuild,
-	SEDDocumentBabah
+	SEDDocumentBabah,
+	SEDDocumentsDelete,
 };
 
 class DocumentsServiceProvider extends ServiceProvider
@@ -21,6 +22,7 @@ class DocumentsServiceProvider extends ServiceProvider
 		SEDDocumentsTestSeeder::class,
 		SEDDocumentsRebuild::class,
 		SEDDocumentBabah::class,
+		SEDDocumentsDelete::class,
 	];
 
 	protected array $providers = [

@@ -8,4 +8,6 @@ class CreateProcessHistoryDto
 	public string $event;
 	public ?string $comment;
 	public ?array $files;
+	public ?string $process_template_name;	
+	public ?int $subuser_id;
 }

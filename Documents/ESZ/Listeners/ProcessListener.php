@@ -97,7 +97,8 @@ class ProcessListener
 					continue;
 				}
 
-				foreach ($listeners as $listener) {
+				foreach ($listeners as $cls) {
+					$listener = \App::make($cls);
 					\App::call([$listener, 'handle'], ['event' => $event]);
 				}
 			}

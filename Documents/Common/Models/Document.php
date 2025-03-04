@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $theme
  * @property int $initiator_id
  * @property string $status_title
+ * @property ?int $status_id
+ * @property ?int $tmp_doc_id
  * @property \DateTime $created_at
  * @property \DateTime $updated_at
  * 
@@ -32,7 +34,10 @@ class Document extends Model
 		'theme',
 		'initiator_id',
 		'status_title',
+		'status_id',
+		'tmp_doc_id',
 	];
+	protected $with = ['type'];
 
 	public function type(): BelongsTo
 	{

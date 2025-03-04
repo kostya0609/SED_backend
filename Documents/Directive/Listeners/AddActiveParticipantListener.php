@@ -1,6 +1,7 @@
 <?php
 namespace SED\Documents\Directive\Listeners;
 
+use SED\Common\Config\SEDConfig;
 use SED\Documents\Directive\Models\Directive;
 use SED\Documents\Directive\Services\DirectiveService;
 use SED\Documents\Directive\Config\ExecutionProcessConfig;
@@ -35,7 +36,7 @@ class AddActiveParticipantListener
 		$document = $this->service->findById($process->document_id);
 		$user_ids = $event->getParticipants()->map(fn($participant): int => $participant->user_id);
 
-		NotificationFacade::sendFromBitrix($user_ids, $this->createMessage($document, $process->template_id));
+		NotificationFacade::send(SEDConfig::getNotificationSender(), $user_ids, $this->createMessage($document, $process->template_id));
 	}
 
 	protected function createMessage(Directive $document, int $template_id): string

@@ -1,6 +1,7 @@
 <?php
 namespace SED\Documents\ESZ\Listeners;
 
+use SED\Common\Config\SEDConfig;
 use SED\Documents\ESZ\Services\ESZService;
 use SED\Documents\ESZ\Config\{CoordinationProcessConfig, SigningProcessConfig, ResolutionProcessConfig};
 use SED\Documents\ESZ\Models\ESZ;
@@ -35,7 +36,7 @@ class AddActiveParticipantListener
 		$document = $this->service->findById($process->document_id);
 		$user_ids = $event->getParticipants()->map(fn($participant): int => $participant->user_id);
 
-		NotificationFacade::sendFromBitrix($user_ids, $this->createMessage($document, $process->template_id));
+		NotificationFacade::send(SEDConfig::getNotificationSender(), $user_ids, $this->createMessage($document, $process->template_id));
 	}
 
 	protected function createMessage(ESZ $document, int $template_id): string

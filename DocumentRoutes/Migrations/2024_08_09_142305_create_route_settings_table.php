@@ -17,7 +17,7 @@ return new class extends Migration {
 			$table->string('title');
 			$table->text('description')->nullable();
 			$table->boolean('default_is_active')->default(false);
-			$table->json('default_data');
+			$table->json('default_data')->nullable();
 		});
 	}
 

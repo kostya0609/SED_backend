@@ -8,6 +8,7 @@ class FilterService
     public function filter(array $filters, $model)
     {
         foreach ($filters as $key => $value) {
+            
             switch ($value['type']) {
                 case 'number': {
                     if ($value['min'] && $value['max'] && $value['operation'] == '><') {
@@ -50,8 +51,13 @@ class FilterService
                     }
                     break;
                 }
-                case 'list' || 'searchList': {
+                case 'list':
+                case 'searchList': {
                     $model = $model->whereIn($key, is_array($value['value']) ? $value['value'] : [$value['value']]);
+                    break;
+                }
+                case 'string': {
+                    $model = $model->where($key, 'LIKE', "%{$value['value']}%");
                     break;
                 }
             }

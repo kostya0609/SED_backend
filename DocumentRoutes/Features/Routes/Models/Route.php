@@ -22,8 +22,8 @@ use SED\DocumentRoutes\Features\Partitions\Models\Partition;
  * @property boolean $is_active
  * @property Direction $direction
  * @property Group $group
- * @property RouteAvailability[] $departments
- * @property DocumentTemplate[] $documentTemplates
+ * @property \Illuminate\Support\Collection<RouteAvailability> $departments
+ * @property \Illuminate\Support\Collection<DocumentTemplate> $documentTemplates
  * @property Partition $partition
  */
 class Route extends Model
@@ -31,8 +31,8 @@ class Route extends Model
 	protected $table = 'l_route_routes';
 
 	protected $casts = [
-        'is_active' => 'boolean',
-    ];
+		'is_active' => 'boolean',
+	];
 
 	protected $with = [
 		'group',
@@ -43,6 +43,9 @@ class Route extends Model
 		'lastEditor',
 		'documentTemplates',
 	];
+
+	protected $appends = ['check_route_usage'];
+
 
 	public function direction(): BelongsTo
 	{
@@ -77,5 +80,10 @@ class Route extends Model
 	public function lastEditor(): HasOne
 	{
 		return $this->hasOne(User::class, 'ID', 'last_editor_id');
+	}
+
+	public function getCheckRouteUsageAttribute(): bool
+	{
+		return $this->documentTemplates->isNotEmpty();
 	}
 }

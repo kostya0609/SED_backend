@@ -19,7 +19,7 @@ class DocumentThemeService
 		} else if (!empty($dto->title)) {
 			return $this->create($dto->title);
 		} else {
-			throw new \LogicException("Не удалось найти тему документа, т.к. неправильно переданы параметры темы!");
+			throw new \Exception("Не удалось найти тему документа, т.к. неправильно переданы параметры темы!");
 		}
 	}
 
@@ -38,7 +38,7 @@ class DocumentThemeService
 		$theme = DocumentTheme::find($theme_id);
 
 		if (!$theme) {
-			throw new \LogicException("Не удалось найти тему документа по id $theme_id");
+			throw new \Exception("Не удалось найти тему документа по id $theme_id");
 		}
 
 		return $theme;

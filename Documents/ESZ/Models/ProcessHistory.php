@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property string $event
  * @property string $comment
  * @property int $user_id
+ * @property int $subuser_id
  * @property \DateTime $created_at
  * @property \DateTime $updated_at
  */
@@ -24,13 +25,20 @@ class ProcessHistory extends Model
 		'event',
 		'comment',
 		'user_id',
+		'subuser_id',
 		'esz_id',
+		'process_template_name',
 	];
-	protected $with = ['user', 'files'];
+	protected $with = ['user', 'subuser', 'files'];
 
 	public function user(): HasOne
 	{
 		return $this->hasOne(User::class, 'ID', 'user_id');
+	}
+
+	public function subuser(): HasOne
+	{
+		return $this->hasOne(User::class, 'ID', 'subuser_id');
 	}
 
 	public function files(): BelongsToMany

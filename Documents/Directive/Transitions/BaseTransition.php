@@ -22,6 +22,8 @@ abstract class BaseTransition
 
 	protected function execute(Directive $directive)
 	{
+		$directive = $directive->fresh(['status', 'creator']);
+		
 		$history = new CreateHistoryDto();
 		$history->directive_id = $directive->id;
 		$history->user_id = $directive->creator->user_id;
@@ -32,6 +34,7 @@ abstract class BaseTransition
 		$document_dto->theme = $directive->theme;
 		$document_dto->initiator_id = $directive->creator->user_id;
 		$document_dto->status_title = $directive->status->title;
+		$document_dto->status_id = $directive->status->id;
 		$this->documentService->update($directive->id, $directive->type_id, $document_dto);
 
 		return $directive;

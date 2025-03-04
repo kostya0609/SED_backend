@@ -4,6 +4,9 @@ namespace SED\DocumentRoutes;
 use App\Modules\Accesses\Actions\GetAction;
 use SED\Common\Config\SEDConfig;
 
+/**
+ * @deprecated более не актуален: взамен этому кдассу был добавлен middleware
+ */
 class VerificationService
 {
 	public function checkAccess($user_id): bool

@@ -19,7 +19,7 @@ return new class extends Migration {
 			$table->unsignedBigInteger('direction_id');
 			$table->unsignedBigInteger('creator_id');
 			$table->unsignedBigInteger('last_editor_id');
-			$table->unsignedBigInteger('partition_id');
+			$table->unsignedBigInteger('partition_id')->nullable();
 			$table->text('description')->nullable();
 			$table->boolean('is_active')->default(true);
 			$table->timestamps();
@@ -40,8 +40,7 @@ return new class extends Migration {
 				->foreign('partition_id')
 				->references('id')
 				->on('l_route_partitions')
-				->restrictOnDelete();
-
+				->nullOnDelete();
 		});
 	}
 

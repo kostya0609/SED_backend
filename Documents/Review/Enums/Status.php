@@ -7,4 +7,5 @@ class Status
     public const REVIEW = 2;
     public const ARCHIVE_WORKED = 3;
 	public const ARCHIVE_CANCELLED = 4;
+	public const DRAFT = 5;
 }

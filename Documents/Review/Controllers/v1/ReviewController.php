@@ -4,7 +4,7 @@ namespace SED\Documents\Review\Controllers\v1;
 use Illuminate\Http\Request;
 use SED\Common\Requests\GetByIdRequest;
 use SED\Common\Controllers\BaseController;
-use SED\Documents\Review\Requests\CreateReviewRequest;
+use SED\Documents\Review\Requests\PreCreateReviewRequest;
 use SED\Documents\Review\Requests\UpdateReviewRequest;
 use SED\Documents\Review\Services\ReviewService;
 
@@ -17,9 +17,9 @@ class ReviewController extends BaseController
         $this->service = $service;
     }
 
-    public function create(CreateReviewRequest $request)
+    public function preCreate(PreCreateReviewRequest $request)
     {
-        $review = $this->service->create($request->createDto());
+        $review = $this->service->preCreate($request->createDto());
         return $this->sendResponse($review);
     }
 
@@ -56,7 +56,7 @@ class ReviewController extends BaseController
 
     public function sendToApproval(GetByIdRequest $request)
 	{
-		$this->service->sendToApproval($request->document_id);
-		return $this->sendResponse();
+		$review = $this->service->sendToApproval($request->document_id);
+		return $this->sendResponse($review);
 	}
 }

@@ -6,6 +6,7 @@ use SED\Documents\Review\Commands\{
 	ReviewMigrate,
 	ReviewRebuildCommand,
 	ReviewTestSeederCommand,
+	ReviewForceDeleteCommand,
 	ReviewInitialSeederCommand
 };
 
@@ -20,6 +21,7 @@ class ReviewServiceProvider extends BaseServiceProvider
 		ReviewInitialSeederCommand::class,
 		ReviewTestSeederCommand::class,
 		ReviewRebuildCommand::class,
+		ReviewForceDeleteCommand::class,
 	];
 
 	/**

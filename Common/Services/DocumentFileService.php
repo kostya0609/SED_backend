@@ -75,11 +75,6 @@ class DocumentFileService
 		$this->upload($uploaded_files, $type);
 	}
 
-	protected function getDocument(int $document_id): Model
-	{
-		throw new \Exception('Method not implemented!');
-	}
-
 	protected function getUploadedFiles(Collection $input_files): Collection
 	{
 		return $input_files

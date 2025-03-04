@@ -754,7 +754,6 @@ class ESZTestSeeder implements SeederInterface
 		$faker = \Faker\Factory::create();
 
 		$dto = new CreateUpdateESZDto();
-		$dto->theme_id = collect([1, 2, 3])->random();
 		$dto->content = $faker->text(random_int(5, 10000));
 		$dto->portfolio = $faker->text(random_int(5, 10000));
 		$dto->signatory_id = $this->getUsers()->random();

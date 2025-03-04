@@ -18,12 +18,12 @@ return new class extends Migration
 			$table->unsignedBigInteger('setting_id');
 			$table->unsignedBigInteger('tmp_doc_id');
 			$table->boolean('is_active')->default(false);
-			$table->json('data');
+			$table->json('data')->nullable();
 
 			$table->primary(['setting_id', 'tmp_doc_id']);
 
 			$table->foreign('setting_id', 'l_route_set_val_set_id_foreign')->references('id')->on('l_route_settings')->restrictOnDelete();
-			$table->foreign('setting_id')->references('id')->on('l_route_tmp_docs')->cascadeOnDelete();
+			$table->foreign('tmp_doc_id')->references('id')->on('l_route_tmp_docs')->cascadeOnDelete();
 		});
 	}
 
@@ -34,11 +34,6 @@ return new class extends Migration
 	 */
 	public function down()
 	{
-		Schema::table('l_route_setting_values', function (Blueprint $table) {
-			$table->dropForeign('l_route_set_val_set_id_foreign');
-		});
-
-
 		Schema::dropIfExists('l_route_setting_values');
 	}
 };

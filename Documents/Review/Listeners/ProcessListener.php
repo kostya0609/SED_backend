@@ -26,7 +26,7 @@ class ProcessListener
 	{
 		$this->listeners = [
 			DecideProcessConfig::getProcessTemplateId() => [
-					ProcessCreated::class => [
+				ProcessCreated::class => [
 					OnProcessCreated::class,
 				],
 				ProcessRunned::class => [
@@ -43,7 +43,7 @@ class ProcessListener
 				],
 
 			],
-			
+
 		];
 	}
 
@@ -61,7 +61,8 @@ class ProcessListener
 					continue;
 				}
 
-				foreach ($listeners as $listener) {
+				foreach ($listeners as $cls) {
+					$listener = \App::make($cls);
 					\App::call([$listener, 'handle'], ['event' => $event]);
 				}
 			}

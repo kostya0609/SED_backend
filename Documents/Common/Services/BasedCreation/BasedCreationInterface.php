@@ -6,5 +6,5 @@ use SED\DocumentRoutes\Features\DocumentTemplates\Models\DocumentTemplate;
 
 interface BasedCreationInterface
 {
-	public function create(Document $base_document, DocumentTemplate $document_template): Document;
+	public function create(Document $base_document, DocumentTemplate $document_template, ?int $initiator_id = null): Document;
 }

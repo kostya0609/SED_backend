@@ -1,46 +1,78 @@
 <?php
+
 namespace SED\Documents\Review\Services;
 
+use Illuminate\Support\Collection;
+use App\Modules\File\Facades\FileFacade;
+use SED\Common\Exceptions\NotFoundException;
+use SED\Common\Services\DocumentFileService;
+use SED\Documents\Common\Enums\DocumentType;
+use App\Modules\Processes\Facades\ProcessFacade;
+use SED\Common\Exceptions\AccessDeniedException;
+use SED\Documents\Common\Services\DocumentService;
+use SED\Documents\Review\Config\DecideProcessConfig;
 use App\Modules\Departments\Facades\DepartmentFacade;
 use App\Modules\Processes\Dto\Publics\CreateProcessDto;
-use App\Modules\Processes\Facades\ProcessFacade;
-use Illuminate\Support\Collection;
-use SED\Common\Services\DocumentFileService;
-use SED\Documents\Common\Services\DocumentService;
-use SED\Documents\Common\Enums\DocumentType;
-use SED\Documents\Common\Dto\{UpdateDocumentDto, CreateDocumentDto};
-use SED\Documents\Review\Dto\{CreateUpdateReviewDto, CreateHistoryDto, GetByIdReviewDto};
 use SED\Documents\Review\Enums\{ParticipantType, Status, FileType};
-use SED\Documents\Review\Models\{Contents, Review, Participant};
-use SED\Documents\Review\Config\DecideProcessConfig;
-use SED\Documents\Review\Transitions\ArchiveWorkedToArchiveСancelled;
+use SED\Documents\Common\Dto\{UpdateDocumentDto, CreateDocumentDto, UserItemDto};
+use SED\Documents\Review\Models\{Review, Participant, ReviewFile};
+use SED\Documents\Review\Dto\{CreateReviewDto, UpdateReviewDto, CreateHistoryDto, GetByIdReviewDto, PreCreateReviewDto};
+use SED\Documents\Review\Transitions\{ArchiveWorkedToArchiveСancelled, PreparationToArchiveСancelled};
+use SED\Documents\Common\Services\UserRoleAggregatorService;
 
 class ReviewService
 {
 	protected DocumentService $documentService;
 	protected HistoryService $historyService;
 	protected ArchiveWorkedToArchiveСancelled $archiveWorkedToArchiveСancelled;
+	protected PreparationToArchiveСancelled $preparationToArchiveCancelled;
 	protected VerificationService $verificationService;
 
 	public function __construct(
 		DocumentService $documentService,
 		HistoryService $historyService,
 		ArchiveWorkedToArchiveСancelled $archiveWorkedToArchiveСancelled,
+		PreparationToArchiveСancelled $preparationToArchiveCancelled,
 		VerificationService $verificationService
 	) {
 		$this->documentService = $documentService;
 		$this->historyService = $historyService;
 		$this->archiveWorkedToArchiveСancelled = $archiveWorkedToArchiveСancelled;
+		$this->preparationToArchiveCancelled = $preparationToArchiveCancelled;
 		$this->verificationService = $verificationService;
 	}
 
-	public function create(CreateUpdateReviewDto $dto): Review
+	public function preCreate(PreCreateReviewDto $dto): Review
+	{
+		$create_dto = new CreateReviewDto();
+		$create_dto->content = $dto->content;
+		$create_dto->portfolio = $dto->portfolio;
+		$create_dto->user_id = $dto->user_id;
+		$create_dto->tmp_doc_id = $dto->tmp_doc_id;
+		$create_dto->theme_title = $dto->theme_title;
+		$create_dto->parent_document_id = $dto->parent_document_id;
+
+		$userRoleAggregatorService = new UserRoleAggregatorService();
+		$userRoleAggregatorService->setDocumentInitiator($dto->user_id);
+
+		if ($dto->receivers->isNotEmpty()) {
+			$create_dto->receivers = $userRoleAggregatorService->extractManyUsers($dto->receivers, $dto->user_id);
+
+			if ($create_dto->receivers->isEmpty()) {
+				throw new \LogicException('Получающие ознакомление не найдены!');
+			}
+		}
+
+		return $this->create($create_dto);
+	}
+
+	public function create(CreateReviewDto $dto): Review
 	{
 		return \DB::transaction(function () use ($dto): Review {
 			$department = DepartmentFacade::getByUserId($dto->user_id);
 
 			$review = new Review();
-			$review->status_id = Status::PREPARATION;
+			$review->status_id = $this->checkDraftAndReturnStatus($dto);
 			$review->type_id = DocumentType::REVIEW;
 			$review->process_template_id = DecideProcessConfig::getProcessTemplateId();
 			$review->department_id = $department->id;
@@ -55,18 +87,18 @@ class ReviewService
 
 			$review->save();
 
-			$contents = new Contents(['content' => $dto->content, 'portfolio' => $dto->portfolio]);
-			$review->contents()->save($contents);
+			$review->contents->content = $dto->content;
+			$review->contents->portfolio = $dto->portfolio;
 
-			$review->initiator()->create([
-				'type_id' => ParticipantType::INITIATOR,
-				'user_id' => $dto->user_id,
-			]);
+			$review->initiator->user_id = $dto->user_id;
+			$review->initiator->can_deletable = false;
+
 			$review->receivers()->createMany(
-				array_map(fn($user_id) => [
+				$dto->receivers->map(fn(UserItemDto $participant) => [
 					'type_id' => ParticipantType::RECEIVERS,
-					'user_id' => $user_id,
-				], $dto->receivers)
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])->toArray()
 			);
 
 			$review->number = $this->documentService->generateDocumentNumber(
@@ -74,6 +106,7 @@ class ReviewService
 				DocumentType::REVIEW,
 				$department->abbreviation
 			);
+
 			$review->push();
 
 			$document_dto = new CreateDocumentDto();
@@ -83,7 +116,11 @@ class ReviewService
 			$document_dto->theme = $review->theme;
 			$document_dto->initiator_id = $review->initiator->user_id;
 			$document_dto->status_title = $review->status->title;
+			$document_dto->status_id = $review->status->id;
+			$document_dto->parent_document_id = $dto->parent_document_id;
+			$document_dto->template_document = $review->templateDocument;
 			$document_dto->participants = $this->getDocumentParticipants($review->id);
+			$document_dto->tmp_doc_id = $review->tmp_doc_id;
 			$common_document = $this->documentService->create($document_dto);
 
 			$history = new CreateHistoryDto();
@@ -115,11 +152,16 @@ class ReviewService
 		$document_participants = $this->getDocumentParticipants($id);
 
 		if (!$review) {
-			throw new \Exception("Не удалось найти ознакомление по id $id");
+			throw new NotFoundException("Не удалось найти ознакомление по id $id");
 		}
 
-		if (!$this->verificationService->checkAccess($user_id, $review, $document_participants)) {
-			throw new \Exception("Отсутствуют права на получение данных по ознакомление с $id");
+		/* ======================= TODO: Костыль для обхода проверки прав, когда сотрудник должен видеть документы из иерархии ======================= */
+		$cookieValue = request()->cookie('selected_document_ids', '[]');
+		$selectedDocumentIds = json_decode($cookieValue, true);
+		$isDocumentSelected = in_array($review->common_document_id, $selectedDocumentIds);
+
+		if (!$this->verificationService->checkAccess($user_id, $review, $document_participants) && !$isDocumentSelected) {
+			throw new AccessDeniedException('Доступ к документу запрещен!');
 		}
 
 		$document_rights = collect([]);
@@ -136,41 +178,53 @@ class ReviewService
 		$review = Review::withOnly([])->find($document_id);
 
 		if (!$review) {
-			throw new \Exception("Не удалось найти ознакомление по id $document_id");
+			throw new NotFoundException("Не удалось найти ознакомление по id $document_id");
 		}
 
 		return $review;
 	}
 
-	public function update(CreateUpdateReviewDto $dto): Review
+	public function update(UpdateReviewDto $dto): Review
 	{
 		return \DB::transaction(function () use ($dto): Review {
 			$review = Review::find($dto->document_id);
 
 			if (!$review) {
-				throw new \Exception("Не удалось найти ознакомление по id $dto->document_id");
+				throw new NotFoundException("Не удалось найти ознакомление по id $dto->document_id");
 			}
+
+			if (!$review->isPreparation() && !$review->isDraft()) {
+				throw new \LogicException('Ознакомление невозможно редактировать на текущем статусе!');
+			}
+
 
 			$review->contents->content = $dto->content;
 			$review->contents->portfolio = $dto->portfolio;
+
+			if ($review->isDraft()) {
+				$review->status_id = $this->checkDraftAndReturnStatus($dto);
+			}
 
 			$review->save();
 
 			$review->receivers()->delete();
 
 			$review->receivers()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::RECEIVERS, 'user_id' => $user_id],
-					$dto->receivers
-				)
+				$dto->receivers->map(fn(UserItemDto $participant) => [
+					'type_id' => ParticipantType::RECEIVERS,
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])->toArray()
 			);
 
 			$review->push();
+			$review->refresh();
 
 			$document_dto = new UpdateDocumentDto();
 			$document_dto->theme = $review->theme;
 			$document_dto->initiator_id = $review->initiator->user_id;
 			$document_dto->status_title = $review->status->title;
+			$document_dto->status_id = $review->status->id;
 			$document_dto->participants = $this->getDocumentParticipants($review->id);
 			$this->documentService->update($review->id, $review->type_id, $document_dto);
 
@@ -189,11 +243,11 @@ class ReviewService
 		$review = Review::find($document_id);
 
 		if (!$review) {
-			throw new \Exception("Не удалось найти ознакомление по id $document_id");
+			throw new NotFoundException("Не удалось найти ознакомление по id $document_id");
 		}
 
 		if (!$review->isPreparation()) {
-			throw new \Exception('Нельзя удалить ознакомление, которое не находится в статусе "Подготовка"');
+			throw new \LogicException('Нельзя удалить ознакомление, которое не находится в статусе "Подготовка"');
 		}
 
 		$active_process = ProcessFacade::getActive($review->process_template_id, $document_id);
@@ -211,14 +265,16 @@ class ReviewService
 		$review = Review::find($document_id);
 
 		if (!$review) {
-			throw new \Exception("Не удалось найти ознакомление по id $document_id");
+			throw new NotFoundException("Не удалось найти ознакомление по id $document_id");
 		}
 
-		if (!$review->isArchiveWorked()) {
-			throw new \Exception('Нельзя удалить ознакомление, которое не находится в статусе "Архив отработано"');
+		if ($review->isPreparation()) {
+			$this->preparationToArchiveCancelled->handle($review);
+		} else if ($review->isArchiveWorked()) {
+			$this->archiveWorkedToArchiveСancelled->handle($review);
+		} else {
+			throw new \LogicException('Нельзя удалить ознакомление, которое находится в статусе "Ознакомление"');
 		}
-
-		$this->archiveWorkedToArchiveСancelled->handle($review);
 
 		return $review->fresh();
 	}
@@ -229,7 +285,7 @@ class ReviewService
 		$review = Review::find($document_id);
 
 		if (!$review) {
-			throw new \Exception("Не удалось найти ознакомление по id $document_id");
+			throw new NotFoundException("Не удалось найти ознакомление по id $document_id");
 		}
 
 		(new DocumentFileService($document_id, $data))
@@ -257,9 +313,13 @@ class ReviewService
 			->toArray();
 	}
 
-	public function sendToApproval(int $document_id): void
+	public function sendToApproval(int $document_id): Review
 	{
 		$review = $this->findById($document_id);
+
+		if ($review->receivers->isEmpty()) {
+			throw new \LogicException('Не заполнены участники ознакомления!');
+		}
 
 		if ($review->isPreparation()) {
 			$active_process = ProcessFacade::rebuild(
@@ -273,5 +333,48 @@ class ReviewService
 
 			ProcessFacade::run($active_process->process->id, $review->initiator->user_id);
 		}
+
+		return $review->fresh();
+	}
+
+	public function forceDelete(int $id)
+	{
+		\DB::transaction(function () use ($id) {
+			$review = Review::find($id);
+
+			if (!$review) {
+				throw new NotFoundException("Не удалось найти ознакомление по id $id");
+			}
+
+			$active_process = ProcessFacade::getActive($review->process_template_id, $review->id);
+
+			if ($active_process->isCreated()) {
+				ProcessFacade::deleteByDocumentIdAndTemplateId($review->id, $review->process_template_id);
+			} else if ($active_process->isCompleted()) {
+				ProcessFacade::deactivateCompletedProcess($review->process_template_id, $review->id);
+			}
+
+			$review->mainFiles->each(function (ReviewFile $file) {
+				FileFacade::delete($file->file_id);
+			});
+
+			$review->delete();
+			$this->documentService->delete($review->id, $review->type_id);
+		});
+	}
+
+	/**
+	 * @param CreateReviewDto|UpdateReviewDto $dto
+	 * @return int
+	 */
+	public function checkDraftAndReturnStatus(object $dto): int
+	{
+		if (!$dto instanceof CreateReviewDto && !$dto instanceof UpdateReviewDto) {
+			throw new \InvalidArgumentException('DTO должен быть экземпляром CreateReviewDto или UpdateReviewDto');
+		}
+
+		$has_receivers = $dto->receivers->isNotEmpty();
+
+		return !$has_receivers ? Status::DRAFT : Status::PREPARATION;
 	}
 }

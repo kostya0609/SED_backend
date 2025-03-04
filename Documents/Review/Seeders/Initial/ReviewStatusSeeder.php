@@ -22,10 +22,14 @@ class ReviewStatusSeeder implements SeederInterface
 				'id' => Status::ARCHIVE_WORKED,
 				'title' => 'Архив. Отработано',
 			],
-            [
-                'id' => Status::ARCHIVE_CANCELLED,
-                'title' => 'Архив. Аннулировано',
-            ],
+			[
+				'id' => Status::ARCHIVE_CANCELLED,
+				'title' => 'Архив. Аннулировано',
+			],
+			[
+				'id' => Status::DRAFT,
+				'title' => 'Черновик',
+			],
 		];
 
 		StatusModel::query()->upsert($data, ['id'], ['title']);

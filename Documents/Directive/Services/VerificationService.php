@@ -16,7 +16,7 @@ class VerificationService
 	{
 		$document_id = $document->id;
 		$initiator_id = $document->creator->user_id;
-		$author_id = $document->author->user_id;
+		$author_id = $document->author ? $document->author->user_id : null;
 
 		// ниже проверка является ли он участником из этого документа
 		if (in_array($user_id, $document_participants)) {
@@ -38,6 +38,10 @@ class VerificationService
 			return true;
 		}
 
+		if ($this->checkSubuser($user_id, $document->id)) {
+			return true;
+		}
+
 		// ниже проверка доп прав
 		$additional_rights_users = GetAction::getAdditionalRights($user_id, SEDConfig::getModuleName());
 		$additional_rights_users = $additional_rights_users->filter(function ($user) use ($initiator_id) {
@@ -48,7 +52,7 @@ class VerificationService
 	}
 
 	//проверка на доступ к редактированию и прочим изменениям в документе
-	public function getDocumentFullAccess(int $user_id, int $initiator_id, int $author_id): bool
+	public function getDocumentFullAccess(int $user_id, int $initiator_id, ?int $author_id): bool
 	{
 		$rights = GetAction::rightsUserModule($user_id, SEDConfig::getModuleName());
 
@@ -105,5 +109,25 @@ class VerificationService
 			->where('b_uts_iblock_5_section.UF_HEAD', $user_id)
 			->pluck('ID')
 			->first();
+	}
+
+	private function checkSubuser(int $subuser_id, int $document_id)
+	{
+		$subQuery = \DB::table('l_accesses_sub_users')
+			->select('replace_user_id')
+			->where('sub_user_id', $subuser_id)
+			->where('module', SEDConfig::getModuleName());
+
+		$sub_query = \DB::table('l_processes')
+			->join('l_processes_tmp', 'l_processes_tmp.id', '=', 'l_processes.template_id')
+			->join('l_processes_participants', 'l_processes_participants.process_id', '=', 'l_processes.id')
+			->where('l_processes_tmp.module_name', DirectiveConfig::getModuleName())
+			->where('l_processes.status_id', '>', 2)
+			->where('l_processes_participants.status_id', 2)
+			->whereIn('l_processes_participants.user_id', $subQuery)
+			->where('l_processes.document_id', $document_id)
+			->exists();
+
+		return $sub_query;
 	}
 }

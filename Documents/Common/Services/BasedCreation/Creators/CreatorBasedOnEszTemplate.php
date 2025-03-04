@@ -2,32 +2,43 @@
 namespace SED\Documents\Common\Services\BasedCreation\Creators;
 
 use SED\Documents\Common\Models\Document;
+use SED\Documents\ESZ\Dto\PreCreateESZDto;
 use SED\Documents\ESZ\Services\ESZService;
-use SED\Documents\ESZ\Dto\CreateUpdateESZDto;
 use SED\Documents\Common\Services\BasedCreation\BasedCreationInterface;
 use SED\DocumentRoutes\Features\DocumentTemplates\Models\DocumentTemplate;
 
 class CreatorBasedOnEszTemplate implements BasedCreationInterface
 {
-	private ESZService $esz_service;
+	private ESZService $service;
 
-	public function __construct(ESZService $esz_service)
+	public function __construct(ESZService $service)
 	{
-		$this->esz_service = $esz_service;
+		$this->service = $service;
 	}
 
-	public function create(Document $base_document, DocumentTemplate $esz_template): Document
+	public function create(Document $base_document, DocumentTemplate $template, ?int $initiator_id = null): Document
 	{
-		$dto = new CreateUpdateESZDto();
-		$dto->content = 'Content';
-		$dto->portfolio = 'Portfolio';
-		$dto->signatory_id = 14956;
-		$dto->receivers = [15001, 15002];
-		$dto->observers = [15003, 15004];
-		$dto->user_id = 14956;
-		$dto->tmp_doc_id = $esz_template->id;
+		$dto = new PreCreateESZDto();
+		$dto->content = $template['data']->content;
+		$dto->portfolio = '';
+		$dto->user_id = $initiator_id ?: $base_document->initiator_id;
+		$dto->tmp_doc_id = $template->id;
+		$dto->parent_document_id = $base_document->id;
+		$dto->theme_title = null;
 
-		$esz = $this->esz_service->create($dto);
+		if ($template['data']->signatory) {
+			$dto->setSignatory((array) $template['data']->signatory);
+		}
+
+		foreach ($template['data']->receivers as $receivers) {
+			$dto->addReceiver((array) $receivers);
+		}
+
+		foreach ($template['data']->observers as $observer) {
+			$dto->addObserver((array) $observer);
+		}
+
+		$esz = $this->service->preCreate($dto);
 
 		return $esz->commonDocument;
 	}

@@ -17,7 +17,8 @@ return new class extends Migration {
 			$table->unsignedBigInteger('esz_id');
 			$table->unsignedBigInteger('user_id');
 			$table->string('event');
-			$table->string('comment')->nullable();
+			$table->text('comment')->nullable();
+			$table->string('process_template_name')->nullable();
 			$table->timestamps();
 
 			$table

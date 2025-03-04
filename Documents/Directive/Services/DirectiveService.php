@@ -2,51 +2,95 @@
 namespace SED\Documents\Directive\Services;
 
 use App\Modules\Departments\Facades\DepartmentFacade;
+use App\Modules\File\Facades\FileFacade;
 use App\Modules\Processes\Dto\Publics\CreateProcessDto;
 use App\Modules\Processes\Facades\ProcessFacade;
 use Illuminate\Support\Collection;
+use SED\Common\Exceptions\NotFoundException;
 use SED\Common\Services\DocumentFileService;
 use SED\Documents\Common\Dto\CreateDocumentDto;
 use SED\Documents\Common\Dto\UpdateDocumentDto;
+use SED\Documents\Common\Dto\UserItemDto;
 use SED\Documents\Common\Enums\DocumentType;
+use SED\Common\Exceptions\AccessDeniedException;
 use SED\Documents\Common\Services\DocumentService;
+use SED\Documents\Common\Services\UserRoleAggregatorService;
 use SED\Documents\Directive\Config\ExecutionProcessConfig;
+use SED\Documents\Directive\Dto\CreateDirectiveDto;
 use SED\Documents\Directive\Dto\CreateHistoryDto;
-use SED\Documents\Directive\Dto\CreateUpdateDirectiveDto;
 use SED\Documents\Directive\Dto\GetByIdDirectiveDto;
+use SED\Documents\Directive\Dto\PreCreateDirectiveDto;
+use SED\Documents\Directive\Dto\UpdateDirectiveDto;
 use SED\Documents\Directive\Enums\FileType;
 use SED\Documents\Directive\Enums\ParticipantType;
 use SED\Documents\Directive\Enums\Status;
 use SED\Documents\Directive\Models\Contents;
 use SED\Documents\Directive\Models\Directive;
+use SED\Documents\Directive\Models\DirectiveFile;
 use SED\Documents\Directive\Models\Participant;
-use SED\Documents\Directive\Transitions\ChangeRequestToInWork;
+use SED\Documents\Directive\Transitions\PreparationToArchiveCancelled;
 
 class DirectiveService
 {
 	protected DocumentService $documentService;
 	protected HistoryService $historyService;
-	protected ChangeRequestToInWork $changeRequestToInWork;
+	protected PreparationToArchiveCancelled $preparationToArchiveCancelled;
 	protected VerificationService $verificationService;
 
 	public function __construct(
 		DocumentService $documentService,
 		HistoryService $historyService,
-		ChangeRequestToInWork $changeRequestToInWork,
+		PreparationToArchiveCancelled $preparationToArchiveCancelled,
 		VerificationService $verificationService
 	) {
 		$this->documentService = $documentService;
 		$this->historyService = $historyService;
-		$this->changeRequestToInWork = $changeRequestToInWork;
+		$this->preparationToArchiveCancelled = $preparationToArchiveCancelled;
 		$this->verificationService = $verificationService;
 	}
 
-	public function create(CreateUpdateDirectiveDto $dto): Directive
+	public function preCreate(PreCreateDirectiveDto $dto): Directive
+	{
+		$create_dto = new CreateDirectiveDto();
+		$create_dto->executed_at = $dto->executed_at;
+		$create_dto->content = $dto->content;
+		$create_dto->portfolio = $dto->portfolio;
+		$create_dto->creator_id = $dto->creator_id;
+		$create_dto->tmp_doc_id = $dto->tmp_doc_id;
+		$create_dto->theme_title = $dto->theme_title;
+		$create_dto->parent_document_id = $dto->parent_document_id;
+
+		$userRoleAggregatorService = new UserRoleAggregatorService();
+		$userRoleAggregatorService->setDocumentInitiator($dto->creator_id);
+
+		if ($dto->author) {
+			$create_dto->author = $userRoleAggregatorService->extractUser($dto->author, $dto->creator_id);
+
+			if (!$create_dto->author) {
+				throw new \LogicException('Автор документа не найден!');
+			}
+		}
+
+		if ($dto->executors->isNotEmpty()) {
+			$create_dto->executors = $userRoleAggregatorService->extractManyUsers($dto->executors, $dto->creator_id);
+
+			if ($create_dto->executors->isEmpty()) {
+				throw new \LogicException('Не указаны исполнители!');
+			}
+		}
+
+		$create_dto->controllers = $userRoleAggregatorService->extractManyUsers($dto->controllers, $dto->creator_id);
+		$create_dto->observers = $userRoleAggregatorService->extractManyUsers($dto->observers, $dto->creator_id);
+
+		return $this->create($create_dto);
+	}
+
+	public function create(CreateDirectiveDto $dto): Directive
 	{
 		return \DB::transaction(function () use ($dto): Directive {
 			$department = DepartmentFacade::getByUserId($dto->creator_id);
 			$directive = new Directive();
-			$directive->status_id = Status::PREPARATION;
+			$directive->status_id = $this->checkDraftAndReturnStatus($dto);
 			$directive->executed_at = $dto->executed_at;
 			$directive->type_id = DocumentType::DIRECTIVE;
 			$directive->process_template_id = ExecutionProcessConfig::getTemplateId();
@@ -68,32 +112,41 @@ class DirectiveService
 			$directive->creator()->create([
 				'type_id' => ParticipantType::CREATOR,
 				'user_id' => $dto->creator_id,
+				'can_deletable' => false,
 			]);
 
-			$directive->author()->create([
-				'type_id' => ParticipantType::AUTHOR,
-				'user_id' => $dto->author_id,
-			]);
+			if ($dto->author) {
+				$directive->author()->create([
+					'type_id' => ParticipantType::AUTHOR,
+					'user_id' => $dto->author->user_id,
+					'can_deletable' => $dto->author->can_deletable,
+				]);
+			}
 
 			$directive->executors()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::EXECUTORS, 'user_id' => $user_id],
-					$dto->executors
+				$dto->executors->map(
+					fn(UserItemDto $participant) => [
+						'type_id' => ParticipantType::EXECUTORS,
+						'user_id' => $participant->user_id,
+						'can_deletable' => $participant->can_deletable,
+					]
 				)
 			);
 
 			$directive->controllers()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::CONTROLLERS, 'user_id' => $user_id],
-					$dto->controllers
-				)
+				$dto->controllers->map(fn(UserItemDto $participant) => [
+					'type_id' => ParticipantType::CONTROLLERS,
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])
 			);
 
 			$directive->observers()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::OBSERVERS, 'user_id' => $user_id],
-					$dto->observers
-				)
+				$dto->observers->map(fn(UserItemDto $participant) => [
+					'type_id' => ParticipantType::OBSERVERS,
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])
 			);
 
 			$directive->number = $this->documentService->generateDocumentNumber(
@@ -111,7 +164,11 @@ class DirectiveService
 			$document_dto->theme = $directive->theme;
 			$document_dto->initiator_id = $directive->creator->user_id;
 			$document_dto->status_title = $directive->status->title;
+			$document_dto->status_id = $directive->status->id;
+			$document_dto->parent_document_id = $dto->parent_document_id;
+			$document_dto->template_document = $directive->templateDocument;
 			$document_dto->participants = $this->getDocumentParticipants($directive->id);
+			$document_dto->tmp_doc_id = $directive->tmp_doc_id;
 			$common_document = $this->documentService->create($document_dto);
 
 			$history = new CreateHistoryDto();
@@ -120,17 +177,20 @@ class DirectiveService
 			$history->event = "Поручение создано";
 			$this->historyService->create($history);
 
-			ProcessFacade::create(
-				CreateProcessDto::create(
-					$directive->creator->user_id,
-					$directive->id,
-					$directive->process_template_id,
-					$directive->creator->user_id
-				)
-			);
+			if ($dto->author) {
+				ProcessFacade::create(
+					CreateProcessDto::create(
+						$directive->author->user_id,
+						$directive->id,
+						$directive->process_template_id,
+						$directive->creator->user_id
+					)
+				);
+			}
 
 			$directive->common_document_id = $common_document->id;
 			$directive->save();
+
 
 			return $directive->fresh();
 		});
@@ -141,16 +201,21 @@ class DirectiveService
 		$directive = Directive::find($id);
 
 		if (!$directive) {
-			throw new \Exception("Не удалось найти поручение по id $id");
+			throw new NotFoundException("Не удалось найти поручение по id $id");
 		}
 
-		if (!$this->verificationService->checkAccess($user_id, $directive, $this->getDocumentParticipants($id))) {
-			throw new \Exception("Нет доступа к поручению!");
+		/* ======================= TODO: Костыль для обхода проверки прав, когда сотрудник должен видеть документы из иерархии ======================= */
+		$cookieValue = request()->cookie('selected_document_ids', '[]');
+		$selectedDocumentIds = json_decode($cookieValue, true);
+		$isDocumentSelected = in_array($directive->common_document_id, $selectedDocumentIds);
+
+		if (!$this->verificationService->checkAccess($user_id, $directive, $this->getDocumentParticipants($id)) && !$isDocumentSelected) {
+			throw new AccessDeniedException('Доступ к документу запрещен!');
 		}
 
 		$document_rights = collect([]);
 
-		if ((bool) $this->verificationService->getDocumentFullAccess($user_id, $directive->creator->user_id, $directive->author->user_id)) {
+		if ((bool) $this->verificationService->getDocumentFullAccess($user_id, $directive->creator->user_id, $directive->author ? $directive->author->user_id : null)) {
 			$document_rights->push('document_full_access');
 		}
 
@@ -162,62 +227,80 @@ class DirectiveService
 		$directive = Directive::withOnly([])->find($document_id);
 
 		if (!$directive) {
-			throw new \Exception("Не удалось найти поручение по id $document_id");
+			throw new NotFoundException("Не удалось найти поручение по id $document_id");
 		}
 
 		return $directive;
 	}
 
-	public function update(CreateUpdateDirectiveDto $dto): Directive
+	public function update(UpdateDirectiveDto $dto): Directive
 	{
 		return \DB::transaction(function () use ($dto): Directive {
 			$directive = Directive::find($dto->document_id);
 
 			if (!$directive) {
-				throw new \LogicException("Не удалось найти поручение по id $dto->document_id");
+				throw new NotFoundException("Не удалось найти поручение по id $dto->document_id");
 			}
 
-			if (!$directive->isPreparation()) {
+			if (!$directive->isPreparation() && !$directive->isDraft()) {
 				throw new \LogicException('Поручение возможно изменить только в статусе "На подготовке"');
 			}
 
 			$directive->executed_at = $dto->executed_at;
 			$directive->contents->content = $dto->content;
 			$directive->contents->portfolio = $dto->portfolio;
-			$directive->author->user_id = $dto->author_id;
+
+			if ($directive->isDraft()) {
+				$directive->status_id = $this->checkDraftAndReturnStatus($dto);
+			}
+
 			$directive->save();
 
+			$directive->author()->delete();
 			$directive->executors()->delete();
 			$directive->controllers()->delete();
 			$directive->observers()->delete();
 
+			$directive->author()->create([
+				'type_id' => ParticipantType::AUTHOR,
+				'user_id' => $dto->author->user_id,
+				'can_deletable' => $dto->author->can_deletable,
+			]);
+
 			$directive->executors()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::EXECUTORS, 'user_id' => $user_id],
-					$dto->executors
+				$dto->executors->map(
+					fn(UserItemDto $participant) => [
+						'type_id' => ParticipantType::EXECUTORS,
+						'user_id' => $participant->user_id,
+						'can_deletable' => $participant->can_deletable,
+					]
 				)
 			);
 
 			$directive->controllers()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::CONTROLLERS, 'user_id' => $user_id],
-					$dto->controllers
-				)
+				$dto->controllers->map(fn(UserItemDto $participant) => [
+					'type_id' => ParticipantType::CONTROLLERS,
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])
 			);
 
 			$directive->observers()->createMany(
-				array_map(
-					fn($user_id) => ['type_id' => ParticipantType::OBSERVERS, 'user_id' => $user_id],
-					$dto->observers
-				)
+				$dto->observers->map(fn(UserItemDto $participant) => [
+					'type_id' => ParticipantType::OBSERVERS,
+					'user_id' => $participant->user_id,
+					'can_deletable' => $participant->can_deletable,
+				])
 			);
 
 			$directive->push();
+			$directive->refresh();
 
 			$document_dto = new UpdateDocumentDto();
 			$document_dto->theme = $directive->theme;
 			$document_dto->initiator_id = $directive->creator->user_id;
 			$document_dto->status_title = $directive->status->title;
+			$document_dto->status_id = $directive->status->id;
 			$document_dto->participants = $this->getDocumentParticipants($directive->id);
 			$this->documentService->update($directive->id, $directive->type_id, $document_dto);
 
@@ -237,11 +320,11 @@ class DirectiveService
 			$directive = Directive::find($id);
 
 			if (!$directive) {
-				throw new \Exception("Не удалось найти поручение по id $id");
+				throw new NotFoundException("Не удалось найти поручение по id $id");
 			}
 
 			if (!$directive->isPreparation()) {
-				throw new \Exception('Нельзя удалить поручение, которое не находится в статусе "Подготовка"');
+				throw new \LogicException('Нельзя удалить поручение, которое не находится в статусе "Подготовка"');
 			}
 
 			$active_process = ProcessFacade::getActive($directive->process_template_id, $directive->id);
@@ -261,7 +344,7 @@ class DirectiveService
 		$directive = Directive::find($document_id);
 
 		if (!$directive) {
-			throw new \Exception("Не удалось найти поручение по id $document_id");
+			throw new NotFoundException("Не удалось найти поручение по id $document_id");
 		}
 
 		(new DocumentFileService($document_id, $data))
@@ -290,14 +373,15 @@ class DirectiveService
 		$directive = Directive::find($document_id);
 
 		if (!$directive) {
-			throw new \Exception("Не удалось найти поручение по id $document_id");
+			throw new NotFoundException("Не удалось найти поручение по id $document_id");
 		}
 
-		if (!$directive->isExecutionChangeRequest()) {
-			throw new \Exception('Нельзя отменить поручение, которое не находится в статусе "Исполнение. Запрос на изменение"!');
+		if ($directive->isPreparation()) {
+			$this->preparationToArchiveCancelled->handle($directive);
+		} else {
+			throw new \LogicException('Нельзя отменить поручение, которое не находится в статусе "Подготовка"');
 		}
 
-		$directive = $this->changeRequestToInWork->handle($directive);
 
 		$directive = $directive->fresh();
 
@@ -312,5 +396,90 @@ class DirectiveService
 			->pluck('user_id')
 			->values()
 			->toArray();
+	}
+
+	public function sendToApproval(int $document_id, int $user_id): Directive
+	{
+		$directive = $this->findById($document_id);
+
+		if (!$directive->isPreparation()) {
+			throw new \LogicException('Нельзя отправить поручение на согласование, которое не находится в статусе "Подготовка"!');
+		}
+
+		if (!$directive->author) {
+			throw new \LogicException('Автор поручения не заполнен!');
+		}
+
+		if ($directive->executors->isEmpty()) {
+			throw new \LogicException('Не заполнены исполнители поручения!');
+		}
+
+		$active_process = ProcessFacade::getActive($directive->process_template_id, $directive->id);
+
+		if ($active_process->isNotCreated()) {
+			$active_process = ProcessFacade::create(
+				CreateProcessDto::create(
+					$directive->author->user_id,
+					$directive->id,
+					$directive->process_template_id,
+					$directive->creator->user_id
+				)
+			);
+		} else if ($active_process->isCreated()) {
+			$active_process = ProcessFacade::rebuild(
+				CreateProcessDto::create(
+					$directive->author->user_id,
+					$directive->id,
+					$directive->process_template_id,
+					$directive->creator->user_id
+				)
+			);
+		} else if ($active_process->isCompleted()) {
+			throw new \LogicException('Процесс уже завершен!');
+		}
+
+		ProcessFacade::run($active_process->process->id, $user_id);
+
+		return $directive->fresh();
+	}
+
+	public function forceDelete(int $id)
+	{
+		\DB::transaction(function () use ($id): void {
+			$directive = Directive::find($id);
+
+			if (!$directive) {
+				throw new NotFoundException("Не удалось найти поручение по id $id");
+			}
+
+			$active_process = ProcessFacade::getActive($directive->process_template_id, $directive->id);
+
+			if ($active_process->isCreated()) {
+				ProcessFacade::deleteByDocumentIdAndTemplateId($id, $directive->process_template_id);
+			}
+
+			$directive->mainFiles->each(function (DirectiveFile $file) {
+				FileFacade::delete($file->file_id);
+			});
+
+			$directive->delete();
+			$this->documentService->delete($directive->id, $directive->type_id);
+		});
+	}
+
+	/**
+	 * @param CreateDirectiveDto|UpdateDirectiveDto $dto
+	 * @return int
+	 */
+	public function checkDraftAndReturnStatus(object $dto): int
+	{
+		if (!$dto instanceof CreateDirectiveDto && !$dto instanceof UpdateDirectiveDto) {
+			throw new \InvalidArgumentException('DTO должен быть экземпляром CreateDirectiveDto или UpdateDirectiveDto');
+		}
+
+		$has_author = !empty($dto->author);
+		$has_executors = $dto->executors->isNotEmpty();
+
+		return (!$has_author && !$has_executors) ? Status::DRAFT : Status::PREPARATION;
 	}
 }

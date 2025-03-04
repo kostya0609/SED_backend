@@ -3,78 +3,96 @@ namespace SED\Documents\Directive\Requests;
 
 use SED\Common\Requests\BaseRequest;
 use SED\Documents\Directive\Dto\CreateUpdateDirectiveDto;
+use SED\Documents\Directive\Dto\UpdateDirectiveDto;
 
 class UpdateDirectiveRequest extends BaseRequest
 {
-	protected function getDtoClass(): ?string
-	{
-		return CreateUpdateDirectiveDto::class;
-	}
 
-	public function createDto(): CreateUpdateDirectiveDto
+	public function createDto(): UpdateDirectiveDto
 	{
-		return parent::createDto();
+		$dto = new UpdateDirectiveDto();
+
+		$dto->document_id = $this->input('document_id');
+		$dto->executed_at = $this->input('executed_at');
+		$dto->content = $this->input('content');
+		$dto->portfolio = $this->input('portfolio');
+
+		$dto->setAuthor($this->input('author')['user_id'], $this->input('author')['can_deletable']);
+
+		foreach ($this->input('executors') as $executor) {
+			$dto->addExecutor($executor['user_id'], $executor['can_deletable']);
+		}
+
+		foreach ($this->input('controllers') as $controller) {
+			$dto->addController($controller['user_id'], $controller['can_deletable']);
+		}
+
+		foreach ($this->input('observers') as $observer) {
+			$dto->addObserver($observer['user_id'], $observer['can_deletable']);
+		}
+
+		return $dto;
 	}
 
 	public function rules(): array
 	{
 		return [
 			'document_id' => 'required|integer',
-
-			'theme_id' => 'required|integer',
-
 			'executed_at' => 'required|date',
-
 			'content' => 'required|string',
 			'portfolio' => 'nullable|string',
 
-			'creator_id' => 'required|integer',
-			'author_id' => 'required|integer',
+			'author' => 'required|array',
+			'author.user_id' => 'nullable|integer',
+			'author.can_deletable' => 'required|boolean',
 
-			'executors' => 'required|array',
-			'executors.*' => 'required|integer',
+			'executors.*' => 'required|array',
+			'executors.*.user_id' => 'nullable|integer',
+			'executors.*.can_deletable' => 'required|boolean',
 
-			'controllers' => 'array',
-			'controllers.*' => 'required|integer',
+			'controllers.*' => 'required|array',
+			'controllers.*.user_id' => 'nullable|integer',
+			'controllers.*.can_deletable' => 'required|boolean',
 
-			'observers' => 'array',
-			'observers.*' => 'required|integer',
-
-			'user_id' => 'required|integer',
+			'observers.*' => 'required|array',
+			'observers.*.user_id' => 'nullable|integer',
+			'observers.*.can_deletable' => 'required|boolean',
 		];
 	}
 
 	public function messages(): array
 	{
 		return [
-			'document_id.required' => 'Идентификатор директивы не был передан!',
-			'document_id.integer' => 'Идентификатор директивы должен быть целым числом!',
+			'document_id.required' => 'Идентификатор документа не был передан!',
+			'document_id.integer' => 'Идентификатор документа должен быть целым числом!',
 
-			'theme_id.required' => 'Идентификатор темы не был передан!',
-			'theme_id.integer' => 'Идентификатор темы должен быть целым числом!',
-
-			'executed_at.date' => 'Поле исполнено должно быть датой!',
+			'executed_at.required' => 'Дата и время выполнения не были переданы!',
+			'executed_at.date' => 'Дата и время выполнения должны быть датой!',
 
 			'content.required' => 'Содержание не было передано!',
 			'content.string' => 'Содержание должно быть строкой!',
 
-			'portfolio.string' => 'Описание портфеля должно быть строкой!',
+			'portfolio.string' => 'Описание портфеля документов должно быть строкой!',
 
-			'creator_id.required' => 'Идентификатор создателя не был передан!',
-			'creator_id.integer' => 'Идентификатор создателя должен быть целым числом!',
+			'author.required' => 'Автор не был передан!',
+			'author.array' => 'Автор должен быть массивом!',
+			'author.user_id.integer' => 'Идентификатор пользователя автора должен быть целым числом!',
+			'author.can_deletable.boolean' => 'Поле can_deletable должно быть булево!',
 
-			'author_id.required' => 'Идентификатор автора не был передан!',
-			'author_id.integer' => 'Идентификатор автора должен быть целым числом!',
+			'executors.*.required' => 'Исполнитель не был передан!',
+			'executors.*.array' => 'Исполнитель должен быть массивом!',
+			'executors.*.user_id.integer' => 'Идентификатор пользователя исполнителя должен быть целым числом!',
+			'executors.*.can_deletable.boolean' => 'Поле can_deletable должно быть булево!',
 
-			'executors.required' => 'Идентификаторы исполнителей не были переданы!',
-			'executors.*.integer' => 'Идентификатор исполнителя должен быть целым числом!',
+			'controllers.*.required' => 'Контролер не был передан!',
+			'controllers.*.array' => 'Контролер должен быть массивом!',
+			'controllers.*.user_id.integer' => 'Идентификатор пользователя контролера должен быть целым числом!',
+			'controllers.*.can_deletable.boolean' => 'Поле can_deletable должно быть булево!',
 
-			'controllers.*.integer' => 'Идентификатор контроллера должен быть целым числом!',
-
-			'observers.*.integer' => 'Идентификатор наблюдателя должен быть целым числом!',
-
-			'user_id.required' => 'Идентификатор пользователя не был передан!',
-			'user_id.integer' => 'Идентификатор пользователя должен быть целым числом!',
+			'observers.*.required' => 'Наблюдатель не был передан!',
+			'observers.*.array' => 'Наблюдатель должен быть массивом!',
+			'observers.*.user_id.integer' => 'Идентификатор пользователя наблюдателя должен быть целым числом!',
+			'observers.*.can_deletable.boolean' => 'Поле can_deletable должно быть булево!',
 		];
 	}
 }

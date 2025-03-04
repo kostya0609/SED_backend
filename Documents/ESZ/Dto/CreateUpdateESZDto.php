@@ -12,4 +12,5 @@ class CreateUpdateESZDto
 	public int $user_id;
 	public ?int $tmp_doc_id;
 	public ?string $theme_title;
+	public ?int $parent_document_id = null;
 }

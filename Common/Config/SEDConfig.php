@@ -7,4 +7,9 @@ class SEDConfig
 	{
 		return 'SED';
 	}
+
+	public static function getNotificationSender()
+	{
+		return 15490;
+	}
 }

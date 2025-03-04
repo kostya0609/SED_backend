@@ -6,6 +6,7 @@ class UpdateDocumentDto
 	public string $theme;
 	public int $initiator_id;
 	public string $status_title;
+	public int $status_id;
 	public ?array $participants;
 
 	/**

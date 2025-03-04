@@ -8,7 +8,17 @@ use App\Modules\Processes\Events\{
 	ProcessRunned,
 	ProcessCancelled,
 	ProcessDecided,
-	ProcessCompleted
+	ProcessCompleted,
+	ExecutorCancelledProcess,
+
+	InteractionConfirmedDeadline,
+	InteractionCancelledDeadline,
+
+	InteractionConfirmedCancellation,
+	InteractionCancelledCancellation,
+
+	InteractionCancelledChangeExecutor,
+	InteractionConfirmedChangeExecutor,
 };
 
 class ProcessListener
@@ -34,6 +44,27 @@ class ProcessListener
 				ProcessCompleted::class => [
 					\SED\Documents\Directive\ProcessEventListeners\Execution\OnProcessCompleted::class,
 				],
+
+				InteractionConfirmedDeadline::class => [
+					\SED\Documents\Directive\ProcessEventListeners\Execution\OnConfirmedDeadline::class,
+				],
+				InteractionCancelledDeadline::class => [
+                    \SED\Documents\Directive\ProcessEventListeners\Execution\OnCancelledDeadline::class,
+                ],
+
+				InteractionConfirmedCancellation::class => [
+					\SED\Documents\Directive\ProcessEventListeners\Execution\OnConfirmedCancellation::class,
+				],
+				InteractionCancelledCancellation::class => [
+                    \SED\Documents\Directive\ProcessEventListeners\Execution\OnCancelledCancellation::class,
+                ],
+
+				InteractionConfirmedChangeExecutor::class => [
+					\SED\Documents\Directive\ProcessEventListeners\Execution\OnConfirmedChangeExecutor::class,
+				],
+				InteractionCancelledChangeExecutor::class => [
+                    \SED\Documents\Directive\ProcessEventListeners\Execution\OnCancelledChangeExecutor::class,
+                ],
 			],
 
 			ExecutionControlProcessConfig::getTemplateId() => [
@@ -43,8 +74,8 @@ class ProcessListener
 				ProcessRunned::class => [
 					\SED\Documents\Directive\ProcessEventListeners\ExecutionControl\OnProcessRunned::class,
 				],
-				ProcessCancelled::class => [
-					\SED\Documents\Directive\ProcessEventListeners\ExecutionControl\OnProcessCancelled::class,
+				ExecutorCancelledProcess::class => [
+					\SED\Documents\Directive\ProcessEventListeners\ExecutionControl\OnExecutorCancelled::class,
 				],
 				ProcessDecided::class => [
 					\SED\Documents\Directive\ProcessEventListeners\ExecutionControl\OnProcessDecided::class,
@@ -70,8 +101,8 @@ class ProcessListener
 					continue;
 				}
 
-				foreach ($listeners as $listener) {
-					/** TODO: Похоже, что метод call под капотом вызывает указанный метод handle статически */
+				foreach ($listeners as $cls) {
+					$listener = \App::make($cls);
 					\App::call([$listener, 'handle'], ['event' => $event]);
 				}
 			}

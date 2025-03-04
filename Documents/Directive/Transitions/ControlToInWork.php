@@ -13,7 +13,6 @@ class ControlToInWork extends BaseTransition
 	public function handle(Directive $directive): Directive
 	{
 		return \DB::transaction(function () use ($directive): Directive {
-			$directive->process_template_id = ExecutionControlProcessConfig::getTemplateId();
 			$directive->status_id = Status::EXECUTION_IN_WORK;
 			$directive->save();
 

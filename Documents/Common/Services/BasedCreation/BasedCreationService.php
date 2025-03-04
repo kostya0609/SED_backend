@@ -5,14 +5,17 @@ use Illuminate\Support\Collection;
 use SED\DocumentRoutes\DocumentTemplate;
 use SED\Documents\Common\Models\Document;
 use SED\Documents\Common\Enums\DocumentType;
-use SED\Documents\Common\Models\DocumentHierarchy;
 use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Common\Services\BasedCreation\Creators\CreatorBasedOnEszTemplate;
+use SED\Documents\Common\Services\BasedCreation\Creators\CreatorBasedOnReviewTemplate;
+use SED\Documents\Common\Services\BasedCreation\Creators\CreatorBasedOnDirectiveTemplate;
 
 class BasedCreationService
 {
 	private const CREATORS = [
 		DocumentType::ESZ => CreatorBasedOnEszTemplate::class,
+		DocumentType::DIRECTIVE => CreatorBasedOnDirectiveTemplate::class,
+		DocumentType::REVIEW => CreatorBasedOnReviewTemplate::class,
 	];
 
 	private DocumentService $document_service;
@@ -22,7 +25,13 @@ class BasedCreationService
 		$this->document_service = $document_service;
 	}
 
-	public function createFrom(int $based_document_id, array $template_ids): Collection
+	/**
+	 * @param int $based_document_id идентификатор общего документа
+	 * @param array $template_ids
+	 * @throws \Exception
+	 * @return \Illuminate\Support\Collection
+	 */
+	public function createFrom(int $based_document_id, array $template_ids, ?int $initiator_id = null): Collection
 	{
 		$base_document = $this->document_service->findById($based_document_id);
 		$documents = collect([]);
@@ -34,33 +43,26 @@ class BasedCreationService
 		$templates = DocumentTemplate::findMany($template_ids);
 
 		foreach ($templates as $template) {
-			$document = $this->createByTemplate($base_document, $template);
+			$document = $this->createDocumentByTemplate($base_document, $template, $initiator_id);
 			$documents->push($document);
-
-			$hierarchy_document = new DocumentHierarchy([
-				'document_id' => $document->id,
-				'parent_document_id' => $base_document->id,
-				'is_start' => $template->is_start,
-				'concrete_document_id' => $document->document_id,
-				'number' => $document->number,
-			]);
-
-			$hierarchy_document->save();
 		}
 
 		return $documents;
 	}
 
-	private function createByTemplate(Document $base_document, DocumentTemplate $template): Document
+	private function createDocumentByTemplate(Document $base_document, DocumentTemplate $template, ?int $initiator_id = null): Document
 	{
 		$creator_class = self::CREATORS[$template->type_id] ?? null;
 
 		if (!$creator_class) {
-			throw new \Exception("Не найден класс создателя для документа с type_id {$template->type_id}");
+			throw new \LogicException("Не найден класс создателя для документа с type_id {$template->type_id}");
 		}
 
+		/**
+		 * @var BasedCreationInterface
+		 */
 		$creator = \App::make($creator_class);
 
-		return $creator->create($base_document, $template);
+		return $creator->create($base_document, $template, $initiator_id);
 	}
 }

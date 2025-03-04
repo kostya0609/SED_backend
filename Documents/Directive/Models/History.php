@@ -12,7 +12,7 @@ class History extends Model
 	protected $fillable = [
 		'event',
 		'user_id',
-		'directive_id',
+		'directive_id',		
 	];
 
 	public function user(): HasOne

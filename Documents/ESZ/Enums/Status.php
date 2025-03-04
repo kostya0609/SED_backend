@@ -47,4 +47,9 @@ class Status
 	 * Архив аннулированно
 	 */
 	public const ARCHIVE_CANCELLED = 9;
+
+	/**
+     * Черновик
+     */
+	public const DRAFT = 10;
 }

@@ -19,18 +19,17 @@ class RouteTestSeeder implements SeederInterface
 	{
 		$faker = \Faker\Factory::create();
 
-		foreach (range(1, 10) as $_) {
+		foreach (range(1, 200) as $_) {
 			$route = new CreateRouteDto();
-			$route->title = $faker->title();
-			$route->direction_id = 1;
-			$route->creator_id = $this->getUsers()->random();
+			$route->title = "Маршрут №$_";
+			$route->direction_id = random_int(1, 6);
 			$route->last_editor_id = $this->getUsers()->random();
 			$route->description = $faker->paragraph();
-			$route->partition_id = 1;
-			$route->group_id = 1;
+			$route->partition_id = random_int(1, 22);
+			$route->group_id = random_int(1, 4);
 			$route->departments = [1074];
 			$route->is_active = $faker->boolean();
-			$route->user_id = 14956;
+			$route->user_id = $this->getUsers()->random();
 
 			$this->service->create($route);
 		}
@@ -39,29 +38,10 @@ class RouteTestSeeder implements SeederInterface
 	private function getUsers(): Collection
 	{
 		return collect([
-
-			13186,
-			14165,
-			6292,
-			6261,
-			7850,
-			14653,
-			7927,
-			6142,
-			15214,
-			14307,
-			14256,
-			14754,
-			14476,
-			13548,
-			13332,
-			6072,
-			14467,
-			14805,
-			13343,
-			6115,
-			6144,
-			14601,
+			14956,
+			12467,
+			14317,
+			14287
 		]);
 	}
 }

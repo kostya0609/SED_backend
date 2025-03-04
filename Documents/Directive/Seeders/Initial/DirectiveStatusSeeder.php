@@ -34,6 +34,10 @@ class DirectiveStatusSeeder implements SeederInterface
 				'id' => Status::ARCHIVE_CANCELLED,
 				'title' => 'Архив. Аннулировано',
 			],
+			[
+				'id' => Status::DRAFT,
+				'title' => 'Черновик',
+			],
 		];
 
 		StatusModel::query()->upsert($data, ['id'], ['title']);

@@ -15,9 +15,10 @@ return new class extends Migration {
 		Schema::create('l_sed_document_hierarchy', function (Blueprint $table) {
 			$table->id();
 			$table->unsignedBigInteger('document_id');
-			$table->unsignedBigInteger('parent_document_id');
+			$table->unsignedBigInteger('parent_document_id')->nullable();
 			$table->boolean('is_start')->default(false);
 			$table->unsignedBigInteger('concrete_document_id');
+			$table->unsignedBigInteger('start_document_id');
 			$table->string('number');
 
 			$table

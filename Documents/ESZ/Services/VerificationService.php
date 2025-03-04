@@ -8,6 +8,7 @@ use App\Modules\Roles\Facades\DynamicRoleFacade;
 use Illuminate\Support\Facades\DB;
 use SED\Common\Config\SEDConfig;
 use SED\Documents\ESZ\Config\ESZConfig;
+use SED\Report\Documents\ESZ\Esz;
 
 class VerificationService
 {
@@ -34,6 +35,10 @@ class VerificationService
 		}
 
 		if ($this->isBossOfInitiator($user_id, $initiator_id)) {
+			return true;
+		}
+
+		if ($this->checkSubuser($user_id, $document->id)) {
 			return true;
 		}
 
@@ -98,5 +103,25 @@ class VerificationService
 			->where('b_uts_iblock_5_section.UF_HEAD', $user_id)
 			->pluck('ID')
 			->first();
+	}
+
+	private function checkSubuser(int $subuser_id, int $document_id)
+	{
+		$subQuery = \DB::table('l_accesses_sub_users')
+			->select('replace_user_id')
+			->where('sub_user_id', $subuser_id)
+			->where('module', SEDConfig::getModuleName());
+
+		$sub_query = \DB::table('l_processes')
+			->join('l_processes_tmp', 'l_processes_tmp.id', '=', 'l_processes.template_id')
+			->join('l_processes_participants', 'l_processes_participants.process_id', '=', 'l_processes.id')
+			->where('l_processes_tmp.module_name', ESZConfig::getModuleName())
+			->where('l_processes.status_id', '>', 2)
+			->where('l_processes_participants.status_id', 2)
+			->whereIn('l_processes_participants.user_id', $subQuery)
+			->where('l_processes.document_id', $document_id)
+			->exists();
+
+		return $sub_query;
 	}
 }

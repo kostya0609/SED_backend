@@ -2,7 +2,6 @@
 
 namespace SED\DocumentRoutes\Features\Routes\Controllers\v1;
 
-use Illuminate\Http\Request;
 use SED\Common\Controllers\BaseController;
 use SED\DocumentRoutes\Features\Routes\Requests\{
 	CreateRouteRequest,
@@ -69,5 +68,11 @@ class RouteController extends BaseController
 		$this->service->deactivate($request->id);
 
 		return $this->sendResponse();
+	}
+
+	public function getRouteByParentId()
+	{		
+		$route = $this->service->getRouteByParentId();
+		return $this->sendResponse($route);
 	}
 }

@@ -6,8 +6,11 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use SED\Common\Config\SEDConfig;
+use SED\Common\Exceptions\NotFoundException;
 use SED\Documents\Common\Models\Document;
 use SED\Documents\Common\Enums\DocumentType;
+use SED\Documents\Common\Models\DocumentType as DocumentTypeModel;
+use SED\Documents\Common\Models\DocumentHierarchy;
 use SED\Documents\Common\Models\DocumentHistory;
 use SED\Documents\ESZ\Config\ESZConfig;
 use SED\Documents\Review\Config\ReviewConfig;
@@ -15,6 +18,9 @@ use SED\Documents\Common\Dto\CreateDocumentDto;
 use SED\Documents\Common\Dto\UpdateDocumentDto;
 use SED\Documents\Common\Dto\FilterDocumentsDto;
 use SED\Documents\Directive\Config\DirectiveConfig;
+
+use App\Modules\BsiTable\FilterFacade;
+use SED\Common\Models\User;
 
 class DocumentService
 {
@@ -42,11 +48,26 @@ class DocumentService
 			], $dto->participants)
 		);
 
+		$parent_document = $dto->parent_document_id ? DocumentHierarchy::firstWhere('document_id', $dto->parent_document_id) : null;
+
+		$hierarchy_document = new DocumentHierarchy([
+			'document_id' => $document->id,
+			'parent_document_id' => $dto->parent_document_id,
+			'is_start' => $dto->template_document ? $dto->template_document->is_start : false,
+			'concrete_document_id' => $document->document_id,
+			'start_document_id' => $parent_document ? $parent_document->start_document_id : $document->id,
+			'number' => $document->number,
+		]);
+
+		$hierarchy_document->save();
+
 		return $document;
 	}
 
 	/**
 	 * Возвращает общий список документов
+	 * 
+	 * @deprecated Использовался для старой версии грида
 	 */
 	public function getAll(FilterDocumentsDto $dto): object
 	{
@@ -68,8 +89,55 @@ class DocumentService
 		];
 	}
 
+
+	/**
+	 * Возвращает общий список документов
+	 * 
+	 * @param int $user_id
+	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
+	 */
+	public function getAllV2(int $user_id)
+	{
+		$model = Document::query()->with(['initiator']);
+
+		$model = $this->verificationService->checkListAccess($model, $user_id);
+
+		$custom_sort_fields = [
+			'initiator_id' => User::select('LAST_NAME')->whereColumn('b_user.ID', 'l_sed_documents.initiator_id'),
+			'type_id' => DocumentTypeModel::select('title')->whereColumn('l_sed_document_types.id', 'l_sed_documents.type_id'),
+		];
+
+		$search_fields = [
+			'number' => '%like%',
+			'status_title' => '%like%',
+			'initiator_id' => 'user-like',
+			'theme' => '%like%',
+		];
+
+		return FilterFacade::sort($custom_sort_fields)
+			->filter()
+			->search($search_fields, function (Builder $builder, $search) {
+				$builder->orWhereIn('type_id', function ($builder) use ($search) {
+					$builder
+						->select(['id'])
+						->from('l_sed_document_types')
+						->where('title', 'LIKE', "%{$search}%");
+				});
+			})
+			->getAll($model);
+	}
+
+	public function getAllCount(int $user_id): int
+	{
+		$model = Document::where('initiator_id', $user_id);
+
+		return $model->count();
+	}
+
 	/**
 	 * Возвращает общий список документов, требующих реакции от пользователя
+	 * 
+	 * @deprecated Использовался для старой версии грида
 	 */
 	public function getNeedActions(FilterDocumentsDto $dto): object
 	{
@@ -78,17 +146,24 @@ class DocumentService
 		$review_ids = NeedActionFacade::getNeedAction(ReviewConfig::getModuleName(), $dto->user_id)->getDocuments();
 
 		$model = Document::query()
-			->orderBy($dto->sort, $dto->order)
-			->orWhere(function (Builder $query) use ($esz_ids) {
-				$query->where('type_id', DocumentType::ESZ)->whereIn('document_id', $esz_ids);
-			})
-			->orWhere(function (Builder $query) use ($directive_ids) {
-				$query->where('type_id', DocumentType::DIRECTIVE)->whereIn('document_id', $directive_ids);
-			})
-			->orWhere(function (Builder $query) use ($review_ids) {
-				$query->where('type_id', DocumentType::REVIEW)->whereIn('document_id', $review_ids);
-			})
-		;
+			->where(function (Builder $query) use ($dto, $esz_ids, $directive_ids, $review_ids) {
+				$query->orderBy($dto->sort, $dto->order)
+					->orWhere(function (Builder $query) use ($esz_ids) {
+						$query->where('type_id', DocumentType::ESZ)->whereIn('document_id', $esz_ids);
+					})
+					->orWhere(function (Builder $query) use ($directive_ids) {
+						$query->where('type_id', DocumentType::DIRECTIVE)->whereIn('document_id', $directive_ids);
+					})
+					->orWhere(function (Builder $query) use ($review_ids) {
+						$query->where('type_id', DocumentType::REVIEW)->whereIn('document_id', $review_ids);
+					})
+					->orWhere(function (Builder $query) use ($dto) {
+						$query->where('type_id', DocumentType::ESZ)
+							->whereIn('status_id', [\SED\Documents\ESZ\Enums\Status::FIX, \SED\Documents\ESZ\Enums\Status::FIX_RESOLUTION])
+							->where('initiator_id', $dto->user_id);
+					});
+			});
+
 
 		if ($dto->filters) {
 			$model = $this->filterService->filter($dto->filters, $model);
@@ -105,11 +180,155 @@ class DocumentService
 	}
 
 	/**
+	 * Возвращает общий список документов, требующих реакции от пользователя
+	 * 
+	 * @param int $user_id
+	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
+	 */
+	public function getNeedActionsV2(int $user_id)
+	{
+		$custom_sort_fields = [
+			'initiator_id' => User::select('LAST_NAME')->whereColumn('b_user.ID', 'l_sed_documents.initiator_id'),
+			'type_id' => DocumentTypeModel::select('title')->whereColumn('l_sed_document_types.id', 'l_sed_documents.type_id'),
+		];
+
+		$search_fields = [
+			'number' => '%like%',
+			'status_title' => '%like%',
+			'initiator_id' => 'user-like',
+			'theme' => '%like%',
+		];
+
+		$esz_ids = NeedActionFacade::getNeedAction(ESZConfig::getModuleName(), $user_id)->getDocuments();
+		$directive_ids = NeedActionFacade::getNeedAction(DirectiveConfig::getModuleName(), $user_id)->getDocuments();
+		$review_ids = NeedActionFacade::getNeedAction(ReviewConfig::getModuleName(), $user_id)->getDocuments();
+
+		$model = Document::query()->with(['initiator'])
+			->where(function (Builder $query) use ($user_id, $esz_ids, $directive_ids, $review_ids) {
+				$query->orWhere(function (Builder $query) use ($esz_ids) {
+					$query->where('type_id', DocumentType::ESZ)->whereIn('document_id', $esz_ids);
+				})
+					->orWhere(function (Builder $query) use ($directive_ids) {
+						$query->where('type_id', DocumentType::DIRECTIVE)->whereIn('document_id', $directive_ids);
+					})
+					->orWhere(function (Builder $query) use ($review_ids) {
+						$query->where('type_id', DocumentType::REVIEW)->whereIn('document_id', $review_ids);
+					})
+					->orWhere(function (Builder $query) use ($user_id) {
+						$query->where('type_id', DocumentType::ESZ)
+							->whereIn('status_id', [\SED\Documents\ESZ\Enums\Status::FIX, \SED\Documents\ESZ\Enums\Status::FIX_RESOLUTION])
+							->where('initiator_id', $user_id);
+					});
+			});
+
+		return FilterFacade::sort($custom_sort_fields)
+			->filter()
+			->search($search_fields, function (Builder $builder, $search) {
+				$builder->orWhereIn('type_id', function ($builder) use ($search) {
+					$builder
+						->select(['id'])
+						->from('l_sed_document_types')
+						->where('title', 'LIKE', "%{$search}%");
+				});
+			})
+			->getAll($model);
+	}
+
+	/**
+	 * Возвращает общий список документов, требующих реакции от заместителя
+	 * 
+	 * @deprecated Использовался для старой версии грида
+	 */
+	public function getNeedActionSubusers(FilterDocumentsDto $dto): object
+	{
+		$model = Document::query()
+			->where(function (Builder $query) use ($dto) {
+				$query->orWhere($this->getDocumentQueryBuilder(ESZConfig::getModuleName(), DocumentType::ESZ, $dto->user_id))
+					->orWhere($this->getDocumentQueryBuilder(DirectiveConfig::getModuleName(), DocumentType::DIRECTIVE, $dto->user_id))
+					->orWhere($this->getDocumentQueryBuilder(ReviewConfig::getModuleName(), DocumentType::REVIEW, $dto->user_id))
+					->orderBy($dto->sort, $dto->order);
+			});
+
+		if ($dto->filters) {
+			$model = $this->filterService->filter($dto->filters, $model);
+		}
+
+		$total = $model->count();
+		$model = $model->offset($dto->offset)->limit($dto->limit);
+		$documents = $model->get();
+
+		return (object) [
+			'items' => $documents,
+			'total' => $total,
+		];
+	}
+
+	/**
+	 * Возвращает общий список документов, требующих реакции от заместителя
+	 * 
+	 * @param int $user_id
+	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
+	 */
+	public function getNeedActionSubusersV2(int $user_id)
+	{
+		$search_fields = [
+			'id' => '=',
+			'number' => '%like%',
+			'status_title' => '%like%',
+			'initiator_id' => 'user-like',
+			'theme' => '%like%',
+		];
+
+		$custom_sort_fields = [
+			'initiator_id' => User::select('LAST_NAME')->whereColumn('b_user.ID', 'l_sed_documents.initiator_id'),
+			'type_id' => DocumentTypeModel::select('title')->whereColumn('l_sed_document_types.id', 'l_sed_documents.type_id'),
+		];
+
+		$model = Document::query()->with(['initiator'])
+			->where(function (Builder $query) use ($user_id) {
+				$query->orWhere($this->getDocumentQueryBuilder(ESZConfig::getModuleName(), DocumentType::ESZ, $user_id))
+					->orWhere($this->getDocumentQueryBuilder(DirectiveConfig::getModuleName(), DocumentType::DIRECTIVE, $user_id))
+					->orWhere($this->getDocumentQueryBuilder(ReviewConfig::getModuleName(), DocumentType::REVIEW, $user_id));
+			});
+
+		$model = $this->verificationService->checkListAccess($model, $user_id);
+
+		return FilterFacade::sort($custom_sort_fields)
+			->filter()
+			->search($search_fields, function (Builder $builder, $search) {
+				$builder->orWhereIn('type_id', function ($builder) use ($search) {
+					$builder
+						->select(['id'])
+						->from('l_sed_document_types')
+						->where('title', 'LIKE', "%{$search}%");
+				});
+			})
+			->getAll($model);
+	}
+
+	/**
 	 * Возвращает общее кол-во документов, требующих реакции от пользователя
 	 */
 	public function getNeedActionCount(int $user_id): int
 	{
-		return NeedActionFacade::getCount(SEDConfig::getModuleName(), $user_id);
+		$count = Document::where('type_id', DocumentType::ESZ)
+			->whereIn('status_id', [\SED\Documents\ESZ\Enums\Status::FIX, \SED\Documents\ESZ\Enums\Status::FIX_RESOLUTION])
+			->where('initiator_id', $user_id)
+			->count();
+
+		return NeedActionFacade::getCount(SEDConfig::getModuleName(), $user_id) + $count;
+	}
+
+	/**
+	 * Возвращает общее кол-во документов, требующих реакции от заместителя
+	 */
+	public function getNeedActionSubuserCount(int $user_id): int
+	{
+		return Document::query()
+			->orWhere($this->getDocumentQueryBuilder(ESZConfig::getModuleName(), DocumentType::ESZ, $user_id))
+			->orWhere($this->getDocumentQueryBuilder(DirectiveConfig::getModuleName(), DocumentType::DIRECTIVE, $user_id))
+			->orWhere($this->getDocumentQueryBuilder(ReviewConfig::getModuleName(), DocumentType::REVIEW, $user_id))
+			->count();
 	}
 
 	/**
@@ -142,12 +361,13 @@ class DocumentService
 		$document = $this->findDocument($document_id, $type_id);
 
 		if (!$document) {
-			throw new \Exception("Не удалось найти документ по document_id $document_id и type_id $type_id");
+			throw new NotFoundException("Не удалось найти документ по document_id $document_id и type_id $type_id");
 		}
 
 		$document->theme = $dto->theme;
 		$document->initiator_id = $dto->initiator_id;
 		$document->status_title = $dto->status_title;
+		$document->status_id = $dto->status_id;
 		$document->save();
 
 		if (isset($dto->participants)) {
@@ -166,14 +386,14 @@ class DocumentService
 	/**
 	 * Удаляет общий документ по id конкретного документа и его типа
 	 * 
-	 * @throws \Exception
+	 * @throws NotFoundException
 	 */
 	public function delete(int $document_id, int $type_id): void
 	{
 		$document = $this->findDocument($document_id, $type_id);
 
 		if (!$document) {
-			throw new \Exception("Не удалось найти документ по document_id $document_id и type_id $type_id");
+			throw new NotFoundException("Не удалось найти документ по document_id $document_id и type_id $type_id");
 		}
 
 		$document->delete();
@@ -233,7 +453,7 @@ class DocumentService
 				break;
 
 			default:
-				throw new \Exception("Не реализована обработка для типа документа $type_id");
+				throw new \LogicException("Не реализована обработка для типа документа $type_id");
 		}
 
 		$number = 1;
@@ -263,5 +483,47 @@ class DocumentService
 			$year,
 			$number
 		);
+	}
+
+	public function getAllStatuses(): Collection
+	{
+		return \DB::query()
+			->selectRaw('statuses.title')
+			->fromSub(function ($query) {
+				$query->select('title')
+					->from('l_esz_statuses')
+					->union(\DB::table('l_directive_statuses')->select('title'))
+					->union(\DB::table('l_review_statuses')->select('title'));
+			}, 'statuses')
+			->groupBy('statuses.title')
+			->orderBy('title')
+			->pluck('title')
+			->values();
+	}
+
+	private function getSubusersQuery(string $module_name, int $subuser_id): \Illuminate\Database\Query\Builder
+	{
+		$subQuery = \DB::table('l_accesses_sub_users')
+			->select('replace_user_id')
+			->where('sub_user_id', $subuser_id)
+			->where('module', SEDConfig::getModuleName());
+
+		return \DB::table('l_processes')
+			->join('l_processes_tmp', 'l_processes_tmp.id', '=', 'l_processes.template_id')
+			->join('l_processes_participants', 'l_processes_participants.process_id', '=', 'l_processes.id')
+			->select('l_processes.document_id')
+			->where('l_processes_tmp.module_name', $module_name)
+			->where('l_processes.status_id', '>', 2)
+			->where('l_processes_participants.status_id', 2)
+			->whereIn('l_processes_participants.user_id', $subQuery);
+	}
+
+	private function getDocumentQueryBuilder(string $module_name, int $document_type_id, $subuser_id): callable
+	{
+		return function (Builder $builder) use ($module_name, $document_type_id, $subuser_id) {
+			return $builder
+				->whereIn('document_id', $this->getSubusersQuery($module_name, $subuser_id))
+				->where('type_id', $document_type_id);
+		};
 	}
 }

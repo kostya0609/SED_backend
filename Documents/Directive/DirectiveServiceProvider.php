@@ -6,7 +6,8 @@ use SED\Documents\Directive\Commands\{
 	DirectiveInitialSeederCommand,
 	DirectiveMigrate,
 	DirectiveRebuildCommand,
-	DirectiveTestSeederCommand
+	DirectiveTestSeederCommand,
+	DirectiveForceDeleteCommand
 };
 
 class DirectiveServiceProvider extends BaseServiceProvider
@@ -20,6 +21,7 @@ class DirectiveServiceProvider extends BaseServiceProvider
 		DirectiveInitialSeederCommand::class,
 		DirectiveTestSeederCommand::class,
 		DirectiveRebuildCommand::class,
+		DirectiveForceDeleteCommand::class,
 	];
 
 	/**

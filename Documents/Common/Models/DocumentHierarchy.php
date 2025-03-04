@@ -16,11 +16,13 @@ class DocumentHierarchy extends Model
 		'parent_document_id',
 		'is_start',
 		'concrete_document_id',
+		'start_document_id',
 		'number',
 	];
 	protected $casts = [
 		'is_start' => 'boolean',
 	];
+	protected $with = ['parentDocument'];
 	protected $appends = ['status_title'];
 
 	public function getStatusTitleAttribute(): string
@@ -31,5 +33,10 @@ class DocumentHierarchy extends Model
 	public function commonDocument(): HasOne
 	{
 		return $this->hasOne(Document::class, 'id', 'document_id');
+	}
+
+	public function parentDocument(): HasOne
+	{
+		return $this->hasOne(DocumentHierarchy::class, 'document_id', 'parent_document_id');
 	}
 }

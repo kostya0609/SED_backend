@@ -21,8 +21,8 @@ class CreateRouteRequest extends BaseRequest
     {
         return [
             'title' => 'required|string',
-            'direction_id' => 'required|integer',
-            'group_id' => 'required|integer',
+            'direction_id' => 'nullable|integer',
+            'group_id' => 'nullable|integer',
             'description' => 'nullable|string',
             'partition_id' => 'required|integer',
             'departments' => 'required|array',
@@ -37,10 +37,8 @@ class CreateRouteRequest extends BaseRequest
             'title.required' => 'Название раздела не было передано!',
             'title.string' => 'Название раздела должно быть строкой!',
 
-            'direction_id.required' => 'ID направления не было передано!',
             'direction_id.integer' => 'ID направления должен быть целым числом!',
 
-            'group_id.required' => 'ID группы не было передано!',
             'group_id.integer' => 'ID группы должен быть целым числом!',
 
             'description.string' => 'Описание маршрута должно быть строкой!',

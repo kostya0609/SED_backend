@@ -21,7 +21,7 @@ return new class extends Migration {
 			$table->unsignedBigInteger('creator_id');
 			$table->unsignedBigInteger('last_editor_id');
 			$table->json('data');
-			$table->text('requirements')->nullable();
+			$table->longText('requirements')->nullable();
 			$table->boolean('is_active')->default(true);
 			$table->boolean('is_start')->default(false);
 			$table->timestamps();

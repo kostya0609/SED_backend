@@ -1,9 +1,9 @@
 <?php
 namespace SED\Documents\ESZ\ProcessEventListeners\Coordination;
 
-use App\Modules\Processes\Events\ParticipantCancelledProcess;
 use SED\Documents\ESZ\Services\ESZService;
 use SED\Documents\ESZ\Transitions\CoordinationToFix;
+use App\Modules\Processes\Events\ParticipantCancelledProcess;
 
 class OnParticipantCancelled
 {

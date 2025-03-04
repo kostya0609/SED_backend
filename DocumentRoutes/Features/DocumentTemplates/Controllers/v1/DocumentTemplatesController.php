@@ -7,9 +7,11 @@ use SED\Common\Controllers\BaseController;
 use SED\DocumentRoutes\Features\DocumentTemplates\Requests\{
 	CreateDocTmpRequest,
 	EditDocTmpRequest,
-	GetDeleteDeactivateDocTmpRequest
+	GetDeleteDeactivateDocTmpRequest,
+	GetByRoleRequest
 };
 
+use SED\DocumentRoutes\Features\DocumentTemplates\Requests\UpdateRequirementsRequest;
 use SED\DocumentRoutes\Features\DocumentTemplates\Services\DocumentTemplateService;
 
 class DocumentTemplatesController extends BaseController
@@ -76,5 +78,29 @@ class DocumentTemplatesController extends BaseController
 		$doc_tmp = $this->service->get($request->id);
 
 		return $this->sendResponse($doc_tmp);
+	}
+
+	public function updateRequirements(UpdateRequirementsRequest $request)
+	{
+		$this->service->updateRequirements($request->id, $request->requirements);
+		return $this->sendResponse();
+	}
+
+	public function getTreeTemplates(Request $request)
+	{
+		$templates = $this->service->getTreeTemplates($request->template_id, $request->common_start_document_id);
+		return $this->sendResponse($templates);
+	}
+
+	public function getByStaticRole(GetByRoleRequest $request)
+	{
+		$templates = $this->service->getByStaticRole($request->role_id);
+		return $this->sendResponse($templates);
+	}
+
+	public function getByDynamicRole(GetByRoleRequest $request)
+	{
+		$templates = $this->service->getByDynamicRole($request->role_id);
+		return $this->sendResponse($templates);
 	}
 }
