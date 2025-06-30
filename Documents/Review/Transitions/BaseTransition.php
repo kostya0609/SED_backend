@@ -1,6 +1,7 @@
 <?php
 namespace SED\Documents\Review\Transitions;
 
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use SED\Documents\Common\Dto\UpdateDocumentDto;
 use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Review\Models\Review;
@@ -33,7 +34,10 @@ abstract class BaseTransition
 		$document_dto->initiator_id = $review->initiator->user_id;
 		$document_dto->status_title = $review->status->title;
 		$document_dto->status_id = $review->status->id;
+		$document_dto->content = $review->contents->content;
 		$this->documentService->update($review->id, $review->type_id, $document_dto);
+
+		DocumentsHierarchyFacade::updateStatus($review->document_hierarchy_id, $review->status->title);
 
 		return $review;
 	}

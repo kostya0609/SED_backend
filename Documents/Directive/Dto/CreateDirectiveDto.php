@@ -17,8 +17,12 @@ class CreateDirectiveDto
 	public ?int $tmp_doc_id;
 	public ?string $theme_title = null;
 	public ?int $parent_document_id = null;
+	public ?int $document_hierarchy_id = null;
 
-	public function __construct()
+    public ?int $root_tmp_id;
+
+
+    public function __construct()
 	{
 		$this->executors = new Collection();
 		$this->controllers = new Collection();

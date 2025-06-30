@@ -25,6 +25,8 @@ class CreatorBasedOnReviewTemplate implements BasedCreationInterface
 		$dto->user_id = $initiator_id ?: $base_document->initiator_id;
 		$dto->parent_document_id = $base_document->id;
 		$dto->theme_title = null;
+		$dto->document_hierarchy_id = $base_document->document_hierarchy_id;
+        $dto->root_tmp_id = $base_document->root_tmp_id;
 
 		foreach ($template['data']->receivers as $receiver) {
 			$dto->addReceiver((array) $receiver);

@@ -25,8 +25,11 @@ class CreatorBasedOnEszTemplate implements BasedCreationInterface
 		$dto->tmp_doc_id = $template->id;
 		$dto->parent_document_id = $base_document->id;
 		$dto->theme_title = null;
+		$dto->document_hierarchy_id = $base_document->document_hierarchy_id;
+        $dto->root_tmp_id = $base_document->root_tmp_id;
 
-		if ($template['data']->signatory) {
+
+        if ($template['data']->signatory) {
 			$dto->setSignatory((array) $template['data']->signatory);
 		}
 

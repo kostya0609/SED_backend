@@ -1,9 +1,9 @@
 <?php
 namespace SED\Documents\ESZ\Services;
 
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
+use SED\Documents\ESZ\Config\ESZConfig;
 use SED\Documents\ESZ\Models\Esz;
-
-
 use Illuminate\Support\Collection;
 use SED\Documents\ESZ\Models\EszFile;
 use App\Modules\File\Facades\FileFacade;
@@ -27,6 +27,7 @@ use SED\Documents\ESZ\Transitions\{
 	FixResolutionToArchiveCancelled,
 	PreparationToSigning
 };
+use App\Modules\DocumentsHierarchy\Dto\CreateDocumentHierarchyDto;
 
 class ESZService
 {
@@ -38,6 +39,7 @@ class ESZService
 	protected FixResolutionToArchiveCancelled $fixResolutionToArchiveCancelled;
 	protected PreparationToSigning $preparationToSigning;
 	protected VerificationService $verificationService;
+	protected NeedActionService $needActionService;
 
 	public function __construct(
 		DocumentService $documentService,
@@ -47,7 +49,8 @@ class ESZService
 		FixSigningToArchiveCancelled $fixSigningToArchiveCancelled,
 		FixResolutionToArchiveCancelled $fixResolutionToArchiveCancelled,
 		VerificationService $verificationService,
-		PreparationToSigning $preparationToSigning
+		PreparationToSigning $preparationToSigning,
+		NeedActionService $needActionService
 	) {
 		$this->documentService = $documentService;
 		$this->historyService = $historyService;
@@ -58,6 +61,7 @@ class ESZService
 		$this->fixResolutionToArchiveCancelled = $fixResolutionToArchiveCancelled;
 		$this->verificationService = $verificationService;
 		$this->preparationToSigning = $preparationToSigning;
+		$this->needActionService = $needActionService;
 	}
 
 	public function preCreate(PreCreateESZDto $dto): Esz
@@ -69,24 +73,19 @@ class ESZService
 		$create_dto->tmp_doc_id = $dto->tmp_doc_id;
 		$create_dto->theme_title = $dto->theme_title;
 		$create_dto->parent_document_id = $dto->parent_document_id;
+		$create_dto->document_hierarchy_id = $dto->document_hierarchy_id;
+        $create_dto->root_tmp_id = $dto->root_tmp_id;
 
-		$userRoleAggregatorService = new UserRoleAggregatorService();
+
+        $userRoleAggregatorService = new UserRoleAggregatorService();
 		$userRoleAggregatorService->setDocumentInitiator($dto->user_id);
 
 		if ($dto->signatory) {
 			$create_dto->signatory = $userRoleAggregatorService->extractUser($dto->signatory, $dto->user_id);
-
-			if (!$create_dto->signatory) {
-				throw new \LogicException('Подписант не найден!');
-			}
 		}
 
 		if ($dto->receivers->isNotEmpty()) {
 			$create_dto->receivers = $userRoleAggregatorService->extractManyUsers($dto->receivers, $dto->user_id);
-
-			if ($create_dto->receivers->isEmpty()) {
-				throw new \LogicException('Адресаты не найдены!');
-			}
 		}
 
 		$create_dto->observers = $userRoleAggregatorService->extractManyUsers($dto->observers, $dto->user_id);
@@ -156,6 +155,19 @@ class ESZService
 
 			$esz->push();
 
+			$create_document_hierarchy_dto = new CreateDocumentHierarchyDto();
+			$create_document_hierarchy_dto->document_id = $esz->id;
+			$create_document_hierarchy_dto->module_name = ESZConfig::getModuleName();
+			$create_document_hierarchy_dto->title = $esz->number;
+			$create_document_hierarchy_dto->status_title = $esz->status->title;
+			$create_document_hierarchy_dto->link = '/sed/documents/esz/detail/:id';
+			$create_document_hierarchy_dto->data = [
+				'theme' => $esz->theme,
+			];
+			$hierarchy_document = DocumentsHierarchyFacade::create($create_document_hierarchy_dto, $dto->document_hierarchy_id);
+
+			DocumentsHierarchyFacade::addParticipants($hierarchy_document->id, $this->getDocumentParticipants($esz->id));
+
 			$document_dto = new CreateDocumentDto();
 			$document_dto->document_id = $esz->id;
 			$document_dto->number = $esz->number;
@@ -168,14 +180,21 @@ class ESZService
 			$document_dto->template_document = $esz->templateDocument;
 			$document_dto->participants = $this->getDocumentParticipants($esz->id);
 			$document_dto->tmp_doc_id = $esz->tmp_doc_id;
+			$document_dto->content = $dto->content;
+			$document_dto->document_hierarchy_id = $hierarchy_document->id;
 
-			$common_document = $this->documentService->create($document_dto);
+
+            $document_dto->root_tmp_id = $dto->root_tmp_id;
+
+
+            $common_document = $this->documentService->create($document_dto);
 
 			$history = new CreateHistoryDto();
 			$history->esz_id = $esz->id;
 			$history->user_id = $esz->initiator->user_id;
 			$history->event = "ЭСЗ создано";
 			$this->historyService->create($history);
+
 
 			ProcessFacade::create(
 				CreateProcessDto::create(
@@ -186,6 +205,7 @@ class ESZService
 				)
 			);
 
+			$esz->document_hierarchy_id = $hierarchy_document->id;
 			$esz->common_document_id = $common_document->id;
 			$esz->save();
 
@@ -287,6 +307,7 @@ class ESZService
 			$document_dto->status_title = $esz->status->title;
 			$document_dto->status_id = $esz->status->id;
 			$document_dto->participants = $this->getDocumentParticipants($esz->id);
+			$document_dto->content = $dto->content;
 
 			$this->documentService->update($esz->id, $esz->type_id, $document_dto);
 
@@ -295,6 +316,9 @@ class ESZService
 			$history->user_id = $esz->initiator->user_id;
 			$history->event = "ЭСЗ обновлено";
 			$this->historyService->create($history);
+
+			DocumentsHierarchyFacade::updateStatus($esz->document_hierarchy_id, $esz->status->title);
+			DocumentsHierarchyFacade::syncParticipants($esz->document_hierarchy_id, $this->getDocumentParticipants($esz->id));
 
 			return $esz->fresh();
 		});
@@ -326,6 +350,7 @@ class ESZService
 
 	public function forceDelete(int $id): void
 	{
+		throw new \LogicException('Функционал принудительного удаления временно запрещен!');
 		\DB::transaction(function () use ($id): void {
 			$esz = Esz::find($id);
 
@@ -346,6 +371,10 @@ class ESZService
 			$esz->additionalFiles->each(function (EszFile $file) {
 				FileFacade::delete($file->file_id);
 			});
+
+			$this->needActionService->delete($esz->initiator->user_id, $esz->id);
+
+			DocumentsHierarchyFacade::deleteSimple($esz->document_hierarchy_id);
 
 			$esz->delete();
 			$this->documentService->delete($esz->id, $esz->type_id);
@@ -385,9 +414,9 @@ class ESZService
 		return $esz->fresh();
 	}
 
-	public function cancellation(int $document_id, int $user_id): Esz
+	public function cancellation(int $document_id): Esz
 	{
-		return \DB::transaction(function () use ($document_id, $user_id) {
+		return \DB::transaction(function () use ($document_id) {
 			$esz = Esz::find($document_id);
 
 			if (!$esz) {
@@ -418,9 +447,9 @@ class ESZService
 		});
 	}
 
-	public function sendToSignatory(int $document_id, int $user_id): Esz
+	public function sendToSignatory(int $document_id): Esz
 	{
-		return \DB::transaction(function () use ($document_id, $user_id) {
+		return \DB::transaction(function () use ($document_id) {
 			$esz = $this->findById($document_id);
 
 			if (!$esz) {
@@ -478,6 +507,6 @@ class ESZService
 		$has_signer = !empty($dto->signatory);
 		$has_receivers = $dto->receivers->isNotEmpty();
 
-		return (!$has_signer && !$has_receivers) ? Status::DRAFT : Status::PREPARATION;
+		return (!$has_signer || !$has_receivers) ? Status::DRAFT : Status::PREPARATION;
 	}
 }

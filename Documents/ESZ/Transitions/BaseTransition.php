@@ -1,6 +1,7 @@
 <?php
 namespace SED\Documents\ESZ\Transitions;
 
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use SED\Documents\ESZ\Models\Esz;
 use SED\Documents\ESZ\Dto\CreateHistoryDto;
 use SED\Documents\ESZ\Services\HistoryService;
@@ -65,7 +66,10 @@ abstract class BaseTransition
 		$document_dto->initiator_id = $esz->initiator->user_id;
 		$document_dto->status_title = $esz->status->title;
 		$document_dto->status_id = $esz->status->id;
+		$document_dto->content = $esz->contents->content;
 		$this->documentService->update($esz->id, $esz->type_id, $document_dto);
+
+		DocumentsHierarchyFacade::updateStatus($esz->document_hierarchy_id, $esz->status->title);
 
 		return $esz;
 	}

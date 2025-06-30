@@ -17,9 +17,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $status_title
  * @property ?int $status_id
  * @property ?int $tmp_doc_id
+ * @property ?int $root_tmp_id
+ * @property string $content
+ * @property ?int $document_hierarchy_id
  * @property \DateTime $created_at
  * @property \DateTime $updated_at
- * 
  * @property DocumentType $type
  * @property User $initiator
  * @property Participant $participants
@@ -36,6 +38,9 @@ class Document extends Model
 		'status_title',
 		'status_id',
 		'tmp_doc_id',
+		'content',
+		'document_hierarchy_id',
+        'root_tmp_id'
 	];
 	protected $with = ['type'];
 

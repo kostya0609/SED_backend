@@ -2,6 +2,7 @@
 namespace SED\Documents\Directive\Services;
 
 use App\Modules\Accesses\Actions\GetAction;
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use App\Modules\Processes\Facades\ParticipantFacade;
 use App\Modules\Roles\Enums\DynamicRole;
 use App\Modules\Roles\Facades\DynamicRoleFacade;
@@ -29,8 +30,19 @@ class VerificationService
 			return true;
 		}
 
+		// ниже проверка на доступ к документу из иерархии
+		if (DocumentsHierarchyFacade::checkUserOnHierarchy($user_id, $document->document_hierarchy_id)) {
+			return true;
+		}
+
 		$document_ids_from_process = $this->getDocumentIdsFromProcess($user_id);
 		if (in_array($document_id, $document_ids_from_process)) {
+			return true;
+		}
+
+		// Проверка наличия подчиненных в списке участников документа
+		$subordinates = DynamicRoleFacade::getUsersByRoleId(DynamicRole::SUBORDINATES, $user_id)->pluck('id');
+		if ($subordinates->intersect($document_participants)->isNotEmpty()) {
 			return true;
 		}
 

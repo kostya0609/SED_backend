@@ -20,24 +20,6 @@ return new class extends Migration {
 			$table->unsignedBigInteger('concrete_document_id');
 			$table->unsignedBigInteger('start_document_id');
 			$table->string('number');
-
-			$table
-				->foreign('document_id')
-				->references('id')
-				->on('l_sed_documents')
-				->cascadeOnDelete();
-
-			$table
-				->foreign('parent_document_id')
-				->references('id')
-				->on('l_sed_documents')
-				->cascadeOnDelete();
-
-			$table
-				->foreign('concrete_document_id')
-				->references('document_id')
-				->on('l_sed_documents')
-				->cascadeOnDelete();
 		});
 	}
 

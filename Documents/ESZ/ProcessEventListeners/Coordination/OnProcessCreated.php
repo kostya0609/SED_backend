@@ -14,8 +14,10 @@ class OnProcessCreated
 
 		if ($esz->templateDocument && $esz->templateDocument->approvalRoutes->count() === 1) {
 			$route = $esz->templateDocument->approvalRoutes->first()->approvalRoute;
-
-			ApprovalRouteFacade::apply($process->id, $route->id);
+			
+			if ($route) {
+				ApprovalRouteFacade::apply($process->id, $route->id);
+			}
 		}
 	}
 }

@@ -52,7 +52,9 @@ class DocumentRoutesMigrate extends Command
 				include app_path() . $path . '/' . $el->migration;
 				$diff = array_diff(get_declared_classes(), $classes);
 				foreach ($diff as $class) {
-					if (false === strripos($class, '\\')) {
+					if (false === strripos($class, '\\')
+                        ||
+                        false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 						$obj = new $class();
 						$obj->down();
 					}
@@ -83,7 +85,9 @@ class DocumentRoutesMigrate extends Command
 				include app_path() . $path . '/' . $el->migration;
 				$diff = array_diff(get_declared_classes(), $classes);
 				foreach ($diff as $class) {
-					if (false === strripos($class, '\\')) {
+					if (false === strripos($class, '\\')
+                        ||
+                        false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 						$fileClasses[$el->migration] = $class;
 						$obj = new $class();
 						$obj->down();
@@ -124,7 +128,9 @@ class DocumentRoutesMigrate extends Command
 					include app_path() . $path . '/' . $file;
 					$diff = array_diff(get_declared_classes(), $classes);
 					foreach ($diff as $class) {
-						if (false === strripos($class, '\\')) {
+						if (false === strripos($class, '\\')
+                            ||
+                            false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 							$obj = new $class();
 							$obj->up();
 							DB::table($table_name)->insert(['migration' => $file, 'batch' => $batch]);
@@ -156,7 +162,9 @@ class DocumentRoutesMigrate extends Command
 				include app_path() . $path . '/' . $el->migration;
 				$diff = array_diff(get_declared_classes(), $classes);
 				foreach ($diff as $class) {
-					if (false === strripos($class, '\\')) {
+					if (false === strripos($class, '\\')
+                        ||
+                        false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 						$fileClasses[$el->migration] = $class;
 						$obj = new $class();
 						$obj->down();
@@ -200,7 +208,10 @@ class DocumentRoutesMigrate extends Command
 				$diff = array_diff(get_declared_classes(), $classes);
 				foreach ($diff as $class) {
 
-					if (false === strripos($class, '\\')) {
+                    var_dump($class);
+					if (false === strripos($class, '\\')
+                        ||
+                        false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 						try {
 							$obj = new $class();
 							$obj->up();

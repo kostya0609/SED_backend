@@ -48,6 +48,7 @@ class PartitionTestSeeder implements SeederInterface
 			$dto = new CreatePartitionDto();
 			$dto->title = $part['title'];
 			$dto->parent_id = $part['parent_id'];
+			$dto->user_id = 14956;
 
 			$this->service->create($dto);
 		}

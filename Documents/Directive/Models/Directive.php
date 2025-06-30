@@ -5,6 +5,7 @@ use \Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use SED\DocumentRoutes\DocumentTemplate;
 use \App\Modules\Departments\Models\Department;
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use SED\Documents\Directive\Enums\{ParticipantType, FileType, Status};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
 use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy, Document, DocumentHierarchyTree};
@@ -21,6 +22,8 @@ use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy, Document, Docu
  * @property int $department_id
  * @property string $execution_control_date
  * @property ?int $tmp_doc_id
+ * @property ?int$root_tmp_id
+ * @property ?int $document_hierarchy_id
  * @property \App\Modules\Departments\Models\Department $department
  * @property StatusModel $status
  * @property Contents $contents
@@ -35,7 +38,6 @@ use SED\Documents\Common\Models\{DocumentType, DocumentHierarchy, Document, Docu
  * @property DocumentType $type
  * @property string $theme_title
  * @property ?int $common_document_id
- * @property ?int $tmp_doc_id
  * @property DocumentTemplate $templateDocument
  * @property ?string $theme
  * @property Document $commonDocument
@@ -65,10 +67,13 @@ class Directive extends Model
 		'processHistory',
 		'templateDocument',
 	];
-	protected $appends = ['theme', 'parent_document', 'hierarchy'];
+	protected $appends = ['theme', 'parent_document', 'hierarchy', 'documents_hierarchy'];
 	protected $hidden = ['documentHierarchy', 'theme_title'];
+    /**
+     * @var int|mixed|null
+     */
 
-	public function type(): HasOne
+    public function type(): HasOne
 	{
 		return $this->hasOne(DocumentType::class, 'id', 'type_id');
 	}
@@ -189,6 +194,11 @@ class Directive extends Model
 		}
 
 		return collect([$hierarchy]);
+	}
+
+	public function getDocumentsHierarchyAttribute()
+	{
+		return $this->document_hierarchy_id ? DocumentsHierarchyFacade::getHierarchy($this->document_hierarchy_id) : null;
 	}
 
 	public function isPreparation(): bool

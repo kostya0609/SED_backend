@@ -2,6 +2,7 @@
 namespace SED\Documents\Common\Services\BasedCreation;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\App;
 use SED\DocumentRoutes\DocumentTemplate;
 use SED\Documents\Common\Models\Document;
 use SED\Documents\Common\Enums\DocumentType;
@@ -61,7 +62,7 @@ class BasedCreationService
 		/**
 		 * @var BasedCreationInterface
 		 */
-		$creator = \App::make($creator_class);
+		$creator = App::make($creator_class);
 
 		return $creator->create($base_document, $template, $initiator_id);
 	}

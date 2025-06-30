@@ -26,12 +26,12 @@ class TemplateDocumentTestSeeder implements SeederInterface
 
 			$dto->route_id = random_int(1, 50);
 
-			$dto->parent_id = null;
+			$dto->parents = [];
 
 			$dto->type_id = collect([DocumentType::ESZ, DocumentType::DIRECTIVE, DocumentType::REVIEW])->random();
 			$dto->creator_id = $this->getUsers()->random();
 			$dto->last_editor_id = $this->getUsers()->random();
-			$dto->is_start = !$dto->parent_id;
+			$dto->is_start = false;
 			$dto->is_active = true;
 			$dto->requirements = $faker->paragraph(3);
 			$dto->user_id = 14956;

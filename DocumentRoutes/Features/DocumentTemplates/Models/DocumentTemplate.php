@@ -1,6 +1,7 @@
 <?php
 namespace SED\DocumentRoutes\Features\DocumentTemplates\Models;
 
+use App\Modules\SED\DocumentRoutes\Features\TemplatePartitions\Models\TemplatePartition;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use SED\Common\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -38,6 +39,7 @@ use SED\DocumentRoutes\Features\Automation\Models\SettingValue;
  * @property-read \SED\DocumentRoutes\Features\DocumentTemplates\Models\DocumentTemplate|null $parent
  * @property-read \SED\DocumentRoutes\Features\Routes\Models\Route|null $route
  * @property-read bool $check_template_usage
+ * @property TemplatePartition $childrenTemplatePartitions
  */
 class DocumentTemplate extends Model
 {
@@ -62,12 +64,37 @@ class DocumentTemplate extends Model
 
 	public function children(): BelongsToMany
 	{
-		return $this->belongsToMany(DocumentTemplate::class, 'l_route_tmp_doc_relations', 'parent_template_id', 'child_template_id')->withPivot(['id', 'root_template_id']);
-	}
+		return $this->belongsToMany(DocumentTemplate::class,
+            'l_route_tmp_doc_relations',
+            'parent_template_id',
+            'child_template_id')
+            ->withPivot(['id', 'root_template_id', 'parent_template_type', 'child_template_type'])
+            ->wherePivot('child_template_type','=','template')
+            ->wherePivot('parent_template_type','=','template');
+
+    }
+
+    public function childrenTemplatePartitions(): BelongsToMany
+    {
+        return $this->belongsToMany(TemplatePartition::class,
+            'l_route_tmp_doc_relations',
+            'parent_template_id',
+            'child_template_id')
+            ->withPivot(['id', 'root_template_id', 'parent_template_type', 'child_template_type'])
+            ->wherePivot('child_template_type','=','partition')
+            ->wherePivot('parent_template_type','=','template');
+
+    }
 
 	public function parents(): BelongsToMany
 	{
-		return $this->belongsToMany(DocumentTemplate::class, 'l_route_tmp_doc_relations', 'child_template_id', 'parent_template_id')->withPivot(['id', 'root_template_id']);
+		return $this->belongsToMany(DocumentTemplate::class,
+            'l_route_tmp_doc_relations',
+            'child_template_id',
+            'parent_template_id')
+            ->withPivot(['id', 'root_template_id','parent_template_type','child_template_type']);
+//            ->wherePivot('child_template_type','=','template')
+//            ->wherePivot('parent_template_type','=','template');
 	}
 
 	public function route(): BelongsTo
@@ -115,5 +142,20 @@ class DocumentTemplate extends Model
 	public function setRootTemplateId(int $root_template_id)
 	{
 		$this->setAttribute('root_template_id', $root_template_id);
+	}
+
+	public function isDirective(): bool
+	{
+		return $this->type_id === \SED\Documents\Common\Enums\DocumentType::DIRECTIVE;
+	}
+
+	public function isEsz(): bool
+	{
+		return $this->type_id === \SED\Documents\Common\Enums\DocumentType::ESZ;
+	}
+
+	public function isReview(): bool
+	{
+		return $this->type_id === \SED\Documents\Common\Enums\DocumentType::REVIEW;
 	}
 }

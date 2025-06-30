@@ -12,6 +12,7 @@ use SED\Documents\Common\Commands\{
 	SEDDocumentsRebuild,
 	SEDDocumentBabah,
 	SEDDocumentsDelete,
+	SEDDocumentsTransferHierarchy,
 };
 
 class DocumentsServiceProvider extends ServiceProvider
@@ -23,6 +24,7 @@ class DocumentsServiceProvider extends ServiceProvider
 		SEDDocumentsRebuild::class,
 		SEDDocumentBabah::class,
 		SEDDocumentsDelete::class,
+		SEDDocumentsTransferHierarchy::class,
 	];
 
 	protected array $providers = [

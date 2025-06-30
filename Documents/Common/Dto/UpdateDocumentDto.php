@@ -8,6 +8,7 @@ class UpdateDocumentDto
 	public string $status_title;
 	public int $status_id;
 	public ?array $participants;
+	public string $content;
 
 	/**
 	 * @deprecated свойство больше не используется

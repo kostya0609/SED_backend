@@ -25,8 +25,5 @@ return new class extends Migration
 	 */
 	public function down()
 	{
-		Schema::table('l_sed_documents', function (Blueprint $table) {
-			$table->dropColumn('status_id');
-		});
 	}
 };

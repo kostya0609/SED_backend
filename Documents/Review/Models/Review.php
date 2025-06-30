@@ -5,6 +5,7 @@ use \Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use SED\DocumentRoutes\DocumentTemplate;
 use \App\Modules\Departments\Models\Department;
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use SED\Documents\Review\Enums\{ParticipantType, FileType, Status};
 use Illuminate\Database\Eloquent\Relations\{HasMany, HasOne, BelongsTo};
 use SED\Documents\Common\Models\{DocumentType, DocumentTheme, Document, DocumentHierarchy, DocumentHierarchyTree};
@@ -18,6 +19,7 @@ use SED\Documents\Common\Models\{DocumentType, DocumentTheme, Document, Document
  * @property int $content_id
  * @property int $process_template_id
  * @property int $department_id
+ * @property ?int $document_hierarchy_id
  * @property \App\Modules\Departments\Models\Department $department
  * @property Participant $initiator
  * @property \Illuminate\Support\Collection $receivers
@@ -52,7 +54,7 @@ class Review extends Model
 		'history',
 		'processHistory',
 	];
-	protected $appends = ['theme', 'parent_document', 'hierarchy'];
+	protected $appends = ['theme', 'parent_document', 'hierarchy', 'documents_hierarchy'];
 	protected $hidden = ['documentHierarchy', 'theme_title'];
 
 	public function type(): HasOne
@@ -152,6 +154,11 @@ class Review extends Model
 		}
 
 		return collect([$hierarchy]);
+	}
+
+	public function getDocumentsHierarchyAttribute()
+	{
+		return $this->document_hierarchy_id ? DocumentsHierarchyFacade::getHierarchy($this->document_hierarchy_id) : null;
 	}
 
 	public function isPreparation(): bool

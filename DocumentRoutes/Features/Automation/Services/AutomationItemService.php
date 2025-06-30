@@ -3,6 +3,8 @@ namespace SED\DocumentRoutes\Features\Automation\Services;
 
 use Illuminate\Support\Collection;
 use SED\DocumentRoutes\AutomationSetting;
+use SED\DocumentRoutes\Features\DocumentTemplates\Models\DocumentTemplate;
+use SED\Documents\Common\Models\Document;
 use SED\Documents\Common\Services\BasedCreation\BasedCreationService;
 
 class AutomationItemService
@@ -21,7 +23,7 @@ class AutomationItemService
 	 * Создает экземпляр документа маршрута со всеми настройками после успешного завершения родительского документа в маршруте.
 	 * Ищет дочерние шаблоны документов с включенным автозапуском и создает их экземпляры.
 	 */
-	public function autorun(int $tmp_doc_id, int $common_document_id): Collection
+	public function autorun_old(int $tmp_doc_id, int $common_document_id): Collection
 	{
 		/**
 		 * sql запрос id шаблонов документов, в котором учитывается,
@@ -55,4 +57,83 @@ class AutomationItemService
 
 		return $this->basedCreationService->createFrom($common_document_id, $autorun_templates->toArray());
 	}
+
+    public function autorun(int $tmp_doc_id, int $common_document_id): Collection
+    {
+//        $tmp_doc_id = 217;
+//        $common_document_id = 2158;
+
+        $tmp = DocumentTemplate::find($tmp_doc_id);
+        $common_document = Document::find($common_document_id);
+        $root_tmp_id = $common_document->root_tmp_id;
+
+        if(!$root_tmp_id)
+        {
+            return collect();
+        }
+
+        $regularChildren = $tmp->children ?? collect();
+        $childTemplatePartitions = $tmp->childrenTemplatePartitions ?? collect();
+        $allChildren = $regularChildren->merge($childTemplatePartitions);
+
+        $autorun_templates = collect();
+        $collectChildrenId = collect();
+        foreach ($allChildren as $child)
+        {
+            if($child->pivot->child_template_type === 'partition')
+            {
+                $collectChildrenId = $collectChildrenId->merge($this->filterChildrenTemplatePartitionsAutomation($allChildren, $root_tmp_id, $collectChildrenId));
+            }
+            else
+            {
+                $collectChildrenId->push($child->pivot->child_template_id);
+            }
+        }
+        $collectChildrenId = $collectChildrenId->unique()->values();
+        foreach($collectChildrenId as $template_id)
+        {
+            $is_active = $this->automationService->getSetting($template_id, AutomationSetting::AUTORUN)->is_active;
+
+            if ($is_active) {
+                $autorun_templates->push($template_id);
+            }
+        }
+        return $this->basedCreationService->createFrom($common_document_id, $autorun_templates->toArray());
+
+
+	}
+
+    public function filterChildrenTemplatePartitionsAutomation(Collection $children, int $root_id,Collection $collectChildrenId):Collection
+    {
+        if ($children->isEmpty()) {
+            return collect();
+        }
+        $children = $children->sortBy('title')
+            ->filter(function($child) use ($root_id)
+            {
+                return isset($child->pivot)
+                    && $child->pivot->root_template_id === $root_id
+                    && $child->is_active;
+            });
+        foreach ($children as $child)
+        {
+            $children = $child->children ?? collect();
+            $childTemplatePartitions = $child->childrenTemplatePartitions ?? collect();
+            if ($child->pivot->child_template_type === 'partition')
+            {
+                $allChildren = $children->merge($childTemplatePartitions);
+                $children = $this->filterChildrenTemplatePartitionsAutomation($allChildren, $root_id, $collectChildrenId);
+                if($children->isNotEmpty())
+                {
+                    $collectChildrenId = $collectChildrenId->merge($children);
+                }
+            }
+
+            if($child->pivot->child_template_type === 'template')
+            {
+                $collectChildrenId->push($child->pivot->child_template_id);
+            }
+        }
+        return $collectChildrenId;
+    }
 }

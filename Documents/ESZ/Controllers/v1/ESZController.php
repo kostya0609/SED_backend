@@ -55,13 +55,13 @@ class ESZController extends BaseController
 
 	public function cancellation(GetByIdRequest $request)
 	{
-		$esz = $this->service->cancellation($request->document_id, $request->user_id);
+		$esz = $this->service->cancellation($request->document_id);
 		return $this->sendResponse($esz);
 	}
 
 	public function sendToSignatory(GetByIdRequest $request)
 	{
-		$esz = $this->service->sendToSignatory($request->document_id, $request->user_id);
+		$esz = $this->service->sendToSignatory($request->document_id);
 		return $this->sendResponse($esz);
 	}
 }

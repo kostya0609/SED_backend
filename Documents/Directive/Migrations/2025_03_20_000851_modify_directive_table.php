@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class ModifyEszParticipantsTable extends Migration
-{
+return new class extends Migration {
 	/**
 	 * Run the migrations.
 	 *
@@ -13,8 +12,8 @@ class ModifyEszParticipantsTable extends Migration
 	 */
 	public function up()
 	{
-		Schema::table('l_directive_participants', function (Blueprint $table) {
-			$table->boolean('can_deletable')->default(true);
+		Schema::table('l_directive', function (Blueprint $table) {
+			$table->unsignedBigInteger('document_hierarchy_id')->nullable();
 		});
 	}
 
@@ -25,8 +24,5 @@ class ModifyEszParticipantsTable extends Migration
 	 */
 	public function down()
 	{
-		Schema::table('l_directive_participants', function (Blueprint $table) {
-			$table->dropColumn('can_deletable');
-		});
 	}
-}
+};

@@ -25,9 +25,5 @@ return new class extends Migration {
 	 */
 	public function down()
 	{
-		Schema::table('l_route_routes', function (Blueprint $table) {
-			$table->unsignedBigInteger('direction_id')->nullable(false)->change();
-			$table->unsignedBigInteger('group_id')->nullable(false)->change();
-		});
 	}
 };

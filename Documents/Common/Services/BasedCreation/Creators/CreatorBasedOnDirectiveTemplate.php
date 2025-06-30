@@ -25,14 +25,22 @@ class CreatorBasedOnDirectiveTemplate implements BasedCreationInterface
 			throw new \LogicException('Invalid days amount');
 		}
 
-		$dto = new PreCreateDirectiveDto();
+        \Log::debug('CreatorBasedOnDirectiveTemplate', ['root_tmp_id' => $base_document->root_tmp_id]);
+
+        $dto = new PreCreateDirectiveDto();
 		$dto->executed_at = Carbon::now()->addDays($days_amount);
 		$dto->content = $template['data']->content;
 		$dto->portfolio = '';
 		$dto->theme_title = null;
 		$dto->creator_id = $initiator_id ?: $base_document->initiator_id;
+		$dto->document_hierarchy_id = $base_document->document_hierarchy_id;
+        $dto->root_tmp_id = $base_document->root_tmp_id;
 
-		if ($template['data']->author) {
+        \Log::debug('CreatorBasedOnDirectiveTemplateDTO', ['root_tmp_id' => $dto->root_tmp_id]);
+
+
+
+        if ($template['data']->author) {
 			$dto->setAuthor((array) $template['data']->author);
 		}
 

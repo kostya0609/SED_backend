@@ -2,6 +2,7 @@
 
 namespace SED\DocumentRoutes\Features\DocumentTemplates\Services;
 
+use App\Modules\SED\DocumentRoutes\Features\TemplatePartitions\Models\TemplatePartition;
 use Illuminate\Support\Collection;
 use SED\Common\Exceptions\NotFoundException;
 use SED\DocumentRoutes\Features\DocumentTemplates\Dto\{
@@ -49,6 +50,8 @@ class DocumentTemplateService
 					'parent_template_id' => $parent['parent_id'],
 					'child_template_id' => $doc_tmp->id,
 					'root_template_id' => $parent['root_id'],
+                    'parent_template_type' => $parent['parent_type'],
+                    'child_template_type' => 'template',
 				];
 			}
 
@@ -96,6 +99,8 @@ class DocumentTemplateService
 					'parent_template_id' => $parent['parent_id'],
 					'child_template_id' => $doc_tmp->id,
 					'root_template_id' => $parent['root_id'],
+                    'parent_template_type' => $parent['parent_type'],
+                    'child_template_type' => 'template',
 				];
 			}
 
@@ -121,6 +126,9 @@ class DocumentTemplateService
 			throw new \DomainException("Нельзя удалить шаблон документа, так как он имеет дочерние шаблоны! Начните удаление с последнего элемента в ветки или проверьте другие ветки.");
 		}
 
+        $doc_tmp->children()->sync([]);
+        $doc_tmp->childrenTemplatePartitions()->sync([]);
+
 		$doc_tmp->delete();
 	}
 
@@ -141,10 +149,12 @@ class DocumentTemplateService
 
 	public function list(int $route_id): Collection
 	{
-		return $this->treeCreatorService->createTree($route_id);
-	}
+//		return $this->treeCreatorService->createTree($route_id);
+        return $this->treeCreatorService->createTreeNew($route_id);
 
-	public function get(int $id): DocumentTemplate
+    }
+
+	public function get(int $id)
 	{
 		$doc_tmp = DocumentTemplate::query()->with('children', 'route')->find($id);
 
@@ -152,20 +162,45 @@ class DocumentTemplateService
 			throw new NotFoundException("Не удалось найти шаблон документа по id $id");
 		}
 
-		$branches = DocumentTemplateRelation::select('id', 'parent_template_id', 'root_template_id')
-			->where('child_template_id', $id)
+		$branches = DocumentTemplateRelation::where('child_template_id', $id)
 			->get();
-
 		unset($doc_tmp->parents);
-		$doc_tmp->parents = $branches->map(function ($item) {
-			$template = DocumentTemplate::find($item->parent_template_id);
+
+		$doc_tmp->parents = $branches->map(function ($item)
+        {
+
+            $template = $this->getParentTemplate($item);
+
+            $template->parent_id    = $item->parent_template_id;
+            $template->parent_type  = $item->parent_template_type;
+            $template->root_id      = $item->root_template_id;
+
 			$template->setBranchId($item->id);
 			$template->setRootTemplateId($item->root_template_id);
+
+
 			return $template;
 		});
 
 		return $doc_tmp;
 	}
+
+    public function getParentTemplate($branch)
+    {
+        if($branch->parent_template_type == 'partition')
+        {
+            $branches = DocumentTemplateRelation::where('child_template_id', $branch->parent_template_id)->get();
+            foreach ($branches as $item)
+            {
+                $template = $this->getParentTemplate($item);
+            }
+        }
+        else
+        {
+            $template = DocumentTemplate::find($branch->parent_template_id);
+        }
+        return $template;
+    }
 
 	public function updateRequirements(int $id, ?string $requirements): void
 	{
@@ -190,7 +225,11 @@ class DocumentTemplateService
 			return new Collection();
 		}
 
-		return $this->treeCreatorService->filterChildrenTemplates($template->children, $root_template_id);
+        $regularChildren = $template->children ?? collect();
+        $childTemplatePartitions = $template->childrenTemplatePartitions ?? collect();
+        $allChildren = $regularChildren->concat($childTemplatePartitions);
+//		return $this->treeCreatorService->filterChildrenTemplates($template->children, $root_template_id);
+		return $this->treeCreatorService->filterChildrenTemplatePartitionsFoundation($allChildren, $root_template_id);
 	}
 
 	public function getByStaticRole(int $static_role_id): Collection

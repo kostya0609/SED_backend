@@ -19,8 +19,11 @@ class CreateESZDto
 	public ?int $tmp_doc_id;
 	public ?string $theme_title;
 	public ?int $parent_document_id = null;
+	public ?int $document_hierarchy_id = null;
 
-	public function __construct()
+    public ?int $root_tmp_id;
+
+    public function __construct()
 	{
 		$this->receivers = new Collection();
 		$this->observers = new Collection();

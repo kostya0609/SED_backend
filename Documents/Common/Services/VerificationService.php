@@ -54,17 +54,26 @@ class VerificationService
 							->where(function (Builder $query) use ($user_id) {
 								$query
 									->where('type_id', DocumentType::DIRECTIVE)
-									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(DirectiveConfig::getModuleName(), $user_id)->values()->toArray());
+									->whereIn(
+										'document_id',
+										ParticipantFacade::getParticipantDocumentIds(DirectiveConfig::getModuleName(), $user_id)->values()->toArray()
+									);
 							})
 							->orWhere(function (Builder $query) use ($user_id) {
 								$query
 									->where('type_id', DocumentType::REVIEW)
-									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(ReviewConfig::getModuleName(), $user_id)->values()->toArray());
+									->whereIn(
+										'document_id',
+										ParticipantFacade::getParticipantDocumentIds(ReviewConfig::getModuleName(), $user_id)->values()->toArray()
+									);
 							})
 							->orWhere(function (Builder $query) use ($user_id) {
 								$query
 									->where('type_id', DocumentType::ESZ)
-									->whereIn('document_id', ParticipantFacade::getParticipantDocumentIds(ESZConfig::getModuleName(), $user_id)->values()->toArray());
+									->whereIn(
+										'document_id',
+										ParticipantFacade::getParticipantDocumentIds(ESZConfig::getModuleName(), $user_id)->values()->toArray()
+									);
 							});
 					})
 					->orWhereIn('id', $document_ids);

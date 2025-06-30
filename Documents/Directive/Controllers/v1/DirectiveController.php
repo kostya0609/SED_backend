@@ -19,7 +19,9 @@ class DirectiveController extends BaseController
 
 	public function preCreate(PreCreateDirectiveRequest $request)
 	{
-		$directive = $this->service->preCreate($request->createDto());
+        \Log::debug('preCreate-controller', ['root_tmp_id' => $request->root_tmp_id]);
+
+        $directive = $this->service->preCreate($request->createDto());
 		return $this->sendResponse($directive);
 	}
 
@@ -43,7 +45,7 @@ class DirectiveController extends BaseController
 
 	public function cancel(GetByIdRequest $request)
 	{
-		$directive = $this->service->cancel($request->document_id, $request->user_id);
+		$directive = $this->service->cancel($request->document_id);
 		return $this->sendResponse($directive);
 	}
 

@@ -5,6 +5,7 @@ use App\Modules\CountControl\Facades\NeedActionFacade;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use LogicException;
 use SED\Common\Config\SEDConfig;
 use SED\Common\Exceptions\NotFoundException;
 use SED\Documents\Common\Models\Document;
@@ -38,6 +39,7 @@ class DocumentService
 	 */
 	public function create(CreateDocumentDto $dto): Document
 	{
+        \Log::debug('Общий документ', ['root_tmp_id' => $dto->root_tmp_id]);
 		$document = new Document((array) $dto);
 		$document->save();
 
@@ -66,7 +68,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов
-	 * 
+	 *
 	 * @deprecated Использовался для старой версии грида
 	 */
 	public function getAll(FilterDocumentsDto $dto): object
@@ -92,7 +94,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов
-	 * 
+	 *
 	 * @param int $user_id
 	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
 	 */
@@ -112,6 +114,7 @@ class DocumentService
 			'status_title' => '%like%',
 			'initiator_id' => 'user-like',
 			'theme' => '%like%',
+			'content' => '%like%',
 		];
 
 		return FilterFacade::sort($custom_sort_fields)
@@ -136,7 +139,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов, требующих реакции от пользователя
-	 * 
+	 *
 	 * @deprecated Использовался для старой версии грида
 	 */
 	public function getNeedActions(FilterDocumentsDto $dto): object
@@ -181,7 +184,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов, требующих реакции от пользователя
-	 * 
+	 *
 	 * @param int $user_id
 	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
 	 */
@@ -197,6 +200,7 @@ class DocumentService
 			'status_title' => '%like%',
 			'initiator_id' => 'user-like',
 			'theme' => '%like%',
+			'content' => '%like%',
 		];
 
 		$esz_ids = NeedActionFacade::getNeedAction(ESZConfig::getModuleName(), $user_id)->getDocuments();
@@ -213,11 +217,6 @@ class DocumentService
 					})
 					->orWhere(function (Builder $query) use ($review_ids) {
 						$query->where('type_id', DocumentType::REVIEW)->whereIn('document_id', $review_ids);
-					})
-					->orWhere(function (Builder $query) use ($user_id) {
-						$query->where('type_id', DocumentType::ESZ)
-							->whereIn('status_id', [\SED\Documents\ESZ\Enums\Status::FIX, \SED\Documents\ESZ\Enums\Status::FIX_RESOLUTION])
-							->where('initiator_id', $user_id);
 					});
 			});
 
@@ -236,7 +235,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов, требующих реакции от заместителя
-	 * 
+	 *
 	 * @deprecated Использовался для старой версии грида
 	 */
 	public function getNeedActionSubusers(FilterDocumentsDto $dto): object
@@ -265,7 +264,7 @@ class DocumentService
 
 	/**
 	 * Возвращает общий список документов, требующих реакции от заместителя
-	 * 
+	 *
 	 * @param int $user_id
 	 * @return \App\Modules\BsiTable\Filter\BsiTablePaginator
 	 */
@@ -277,6 +276,7 @@ class DocumentService
 			'status_title' => '%like%',
 			'initiator_id' => 'user-like',
 			'theme' => '%like%',
+			'content' => '%like%',
 		];
 
 		$custom_sort_fields = [
@@ -290,8 +290,6 @@ class DocumentService
 					->orWhere($this->getDocumentQueryBuilder(DirectiveConfig::getModuleName(), DocumentType::DIRECTIVE, $user_id))
 					->orWhere($this->getDocumentQueryBuilder(ReviewConfig::getModuleName(), DocumentType::REVIEW, $user_id));
 			});
-
-		$model = $this->verificationService->checkListAccess($model, $user_id);
 
 		return FilterFacade::sort($custom_sort_fields)
 			->filter()
@@ -311,12 +309,7 @@ class DocumentService
 	 */
 	public function getNeedActionCount(int $user_id): int
 	{
-		$count = Document::where('type_id', DocumentType::ESZ)
-			->whereIn('status_id', [\SED\Documents\ESZ\Enums\Status::FIX, \SED\Documents\ESZ\Enums\Status::FIX_RESOLUTION])
-			->where('initiator_id', $user_id)
-			->count();
-
-		return NeedActionFacade::getCount(SEDConfig::getModuleName(), $user_id) + $count;
+		return NeedActionFacade::getCount(SEDConfig::getModuleName(), $user_id);
 	}
 
 	/**
@@ -333,7 +326,7 @@ class DocumentService
 
 	/**
 	 * Ищет общий документ по id конкретного документа и его типа
-	 * 
+	 *
 	 * @param int $document_id id конкретного
 	 * @param int $type_id id типа документа
 	 */
@@ -349,11 +342,11 @@ class DocumentService
 
 	/**
 	 * Ищет документ по $document_id и $type_id и обновляет его по переданным данным из $dto
-	 * 
+	 *
 	 * @param int $document_id идентификатор конкретного документа
 	 * @param int $type_id тип конкретного документа
 	 * @param UpdateDocumentDto $dto объект с данными для обновления
-	 * 
+	 *
 	 * @return Document
 	 */
 	public function update(int $document_id, int $type_id, UpdateDocumentDto $dto): Document
@@ -368,6 +361,7 @@ class DocumentService
 		$document->initiator_id = $dto->initiator_id;
 		$document->status_title = $dto->status_title;
 		$document->status_id = $dto->status_id;
+		$document->content = $dto->content;
 		$document->save();
 
 		if (isset($dto->participants)) {
@@ -385,18 +379,26 @@ class DocumentService
 
 	/**
 	 * Удаляет общий документ по id конкретного документа и его типа
-	 * 
+	 *
 	 * @throws NotFoundException
 	 */
 	public function delete(int $document_id, int $type_id): void
 	{
-		$document = $this->findDocument($document_id, $type_id);
+		\DB::transaction(function () use ($document_id, $type_id) {
+			$document = $this->findDocument($document_id, $type_id);
 
-		if (!$document) {
-			throw new NotFoundException("Не удалось найти документ по document_id $document_id и type_id $type_id");
-		}
+			if (!$document) {
+				throw new NotFoundException("Не удалось найти документ по document_id $document_id и type_id $type_id");
+			}
 
-		$document->delete();
+			if (DocumentHierarchy::where('parent_document_id', $document->id)->exists()) {
+				throw new LogicException('Документ не может быть удален, поскольку существуют вложенные документы.');
+			}
+
+			DocumentHierarchy::where('document_id', $document->id)->limit(1)->delete();
+
+			$document->delete();
+		});
 	}
 
 	public function searchByNumber(string $query): Collection
@@ -427,11 +429,11 @@ class DocumentService
 	 * Генерирует уникальный номер документа на основе типа документа,аббревиатуры подразделения и текущего года.
 	 * Сбрасывает номер документа при переходе на следующий год. Номер документа формирует по маске с начальными нулями.
 	 * Если номер документа получится больше 6 цифр, то автоматически длина маски увеличится без заполнения нулями в начале (было 999999, а след. номер станет 1000000).
-	 * 
+	 *
 	 * @param int $document_id идентификатор документа
 	 * @param int $type_id идентификатор типа документа
 	 * @param string $department_abbreviation аббревиатура подразделения
-	 * 
+	 *
 	 * @return string номер документа в формате: (первые буквы типа документа)-(аббревиатура департамента)-(год)-(номер документа)
 	 */
 	public function generateDocumentNumber(int $document_id, int $type_id, string $department_abbreviation): string
@@ -453,7 +455,7 @@ class DocumentService
 				break;
 
 			default:
-				throw new \LogicException("Не реализована обработка для типа документа $type_id");
+				throw new LogicException("Не реализована обработка для типа документа $type_id");
 		}
 
 		$number = 1;

@@ -2,6 +2,8 @@
 namespace SED\Documents\Directive\Services;
 
 use App\Modules\Departments\Facades\DepartmentFacade;
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
+use App\Modules\DocumentsHierarchy\Dto\CreateDocumentHierarchyDto;
 use App\Modules\File\Facades\FileFacade;
 use App\Modules\Processes\Dto\Publics\CreateProcessDto;
 use App\Modules\Processes\Facades\ProcessFacade;
@@ -15,6 +17,7 @@ use SED\Documents\Common\Enums\DocumentType;
 use SED\Common\Exceptions\AccessDeniedException;
 use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Common\Services\UserRoleAggregatorService;
+use SED\Documents\Directive\Config\DirectiveConfig;
 use SED\Documents\Directive\Config\ExecutionProcessConfig;
 use SED\Documents\Directive\Dto\CreateDirectiveDto;
 use SED\Documents\Directive\Dto\CreateHistoryDto;
@@ -51,7 +54,9 @@ class DirectiveService
 
 	public function preCreate(PreCreateDirectiveDto $dto): Directive
 	{
-		$create_dto = new CreateDirectiveDto();
+        \Log::debug('preCreate', ['root_tmp_id' => $dto->root_tmp_id]);
+
+        $create_dto = new CreateDirectiveDto();
 		$create_dto->executed_at = $dto->executed_at;
 		$create_dto->content = $dto->content;
 		$create_dto->portfolio = $dto->portfolio;
@@ -59,24 +64,21 @@ class DirectiveService
 		$create_dto->tmp_doc_id = $dto->tmp_doc_id;
 		$create_dto->theme_title = $dto->theme_title;
 		$create_dto->parent_document_id = $dto->parent_document_id;
+		$create_dto->document_hierarchy_id = $dto->document_hierarchy_id;
 
-		$userRoleAggregatorService = new UserRoleAggregatorService();
+        $create_dto->root_tmp_id = $dto->root_tmp_id;
+
+
+
+        $userRoleAggregatorService = new UserRoleAggregatorService();
 		$userRoleAggregatorService->setDocumentInitiator($dto->creator_id);
 
 		if ($dto->author) {
 			$create_dto->author = $userRoleAggregatorService->extractUser($dto->author, $dto->creator_id);
-
-			if (!$create_dto->author) {
-				throw new \LogicException('Автор документа не найден!');
-			}
 		}
 
 		if ($dto->executors->isNotEmpty()) {
 			$create_dto->executors = $userRoleAggregatorService->extractManyUsers($dto->executors, $dto->creator_id);
-
-			if ($create_dto->executors->isEmpty()) {
-				throw new \LogicException('Не указаны исполнители!');
-			}
 		}
 
 		$create_dto->controllers = $userRoleAggregatorService->extractManyUsers($dto->controllers, $dto->creator_id);
@@ -88,7 +90,9 @@ class DirectiveService
 	public function create(CreateDirectiveDto $dto): Directive
 	{
 		return \DB::transaction(function () use ($dto): Directive {
-			$department = DepartmentFacade::getByUserId($dto->creator_id);
+            \Log::debug('create', ['root_tmp_id' => $dto->root_tmp_id]);
+
+            $department = DepartmentFacade::getByUserId($dto->creator_id);
 			$directive = new Directive();
 			$directive->status_id = $this->checkDraftAndReturnStatus($dto);
 			$directive->executed_at = $dto->executed_at;
@@ -157,6 +161,19 @@ class DirectiveService
 			$directive->save();
 			$directive = $directive->fresh();
 
+			$create_document_hierarchy_dto = new CreateDocumentHierarchyDto();
+			$create_document_hierarchy_dto->document_id = $directive->id;
+			$create_document_hierarchy_dto->module_name = DirectiveConfig::getModuleName();
+			$create_document_hierarchy_dto->title = $directive->number;
+			$create_document_hierarchy_dto->status_title = $directive->status->title;
+			$create_document_hierarchy_dto->link = '/sed/documents/directive/detail/:id';
+			$create_document_hierarchy_dto->data = [
+				'theme' => $directive->theme,
+			];
+			$hierarchy_document = DocumentsHierarchyFacade::create($create_document_hierarchy_dto, $dto->document_hierarchy_id);
+
+			DocumentsHierarchyFacade::addParticipants($hierarchy_document->id, $this->getDocumentParticipants($directive->id));
+
 			$document_dto = new CreateDocumentDto();
 			$document_dto->document_id = $directive->id;
 			$document_dto->number = $directive->number;
@@ -169,6 +186,13 @@ class DirectiveService
 			$document_dto->template_document = $directive->templateDocument;
 			$document_dto->participants = $this->getDocumentParticipants($directive->id);
 			$document_dto->tmp_doc_id = $directive->tmp_doc_id;
+			$document_dto->content = $dto->content;
+			$document_dto->document_hierarchy_id = $hierarchy_document->id;
+
+            //для автоматизации
+            $document_dto->root_tmp_id = $dto->root_tmp_id;;
+
+
 			$common_document = $this->documentService->create($document_dto);
 
 			$history = new CreateHistoryDto();
@@ -188,6 +212,7 @@ class DirectiveService
 				);
 			}
 
+			$directive->document_hierarchy_id = $hierarchy_document->id;
 			$directive->common_document_id = $common_document->id;
 			$directive->save();
 
@@ -215,7 +240,7 @@ class DirectiveService
 
 		$document_rights = collect([]);
 
-		if ((bool) $this->verificationService->getDocumentFullAccess($user_id, $directive->creator->user_id, $directive->author ? $directive->author->user_id : null)) {
+		if ((bool) $this->verificationService->getDocumentFullAccess($user_id, $directive->creator->user_id, $directive->author ?? null)) {
 			$document_rights->push('document_full_access');
 		}
 
@@ -302,6 +327,7 @@ class DirectiveService
 			$document_dto->status_title = $directive->status->title;
 			$document_dto->status_id = $directive->status->id;
 			$document_dto->participants = $this->getDocumentParticipants($directive->id);
+			$document_dto->content = $dto->content;
 			$this->documentService->update($directive->id, $directive->type_id, $document_dto);
 
 			$history = new CreateHistoryDto();
@@ -309,6 +335,9 @@ class DirectiveService
 			$history->user_id = $directive->creator->user_id;
 			$history->event = "Поручение обновлено";
 			$this->historyService->create($history);
+
+			DocumentsHierarchyFacade::updateStatus($directive->document_hierarchy_id, $directive->status->title);
+			DocumentsHierarchyFacade::syncParticipants($directive->document_hierarchy_id, $this->getDocumentParticipants($directive->id));
 
 			return $directive->fresh();
 		});
@@ -368,7 +397,7 @@ class DirectiveService
 			->pluck('user_id');
 	}
 
-	public function cancel(int $document_id, int $user_id): Directive
+	public function cancel(int $document_id): Directive
 	{
 		$directive = Directive::find($document_id);
 
@@ -445,6 +474,7 @@ class DirectiveService
 
 	public function forceDelete(int $id)
 	{
+		throw new \LogicException('Функционал принудительного удаления временно запрещен!');
 		\DB::transaction(function () use ($id): void {
 			$directive = Directive::find($id);
 
@@ -462,6 +492,8 @@ class DirectiveService
 				FileFacade::delete($file->file_id);
 			});
 
+			DocumentsHierarchyFacade::deleteSimple($directive->document_hierarchy_id);
+
 			$directive->delete();
 			$this->documentService->delete($directive->id, $directive->type_id);
 		});
@@ -471,7 +503,7 @@ class DirectiveService
 	 * @param CreateDirectiveDto|UpdateDirectiveDto $dto
 	 * @return int
 	 */
-	public function checkDraftAndReturnStatus(object $dto): int
+	private function checkDraftAndReturnStatus(object $dto): int
 	{
 		if (!$dto instanceof CreateDirectiveDto && !$dto instanceof UpdateDirectiveDto) {
 			throw new \InvalidArgumentException('DTO должен быть экземпляром CreateDirectiveDto или UpdateDirectiveDto');
@@ -480,6 +512,6 @@ class DirectiveService
 		$has_author = !empty($dto->author);
 		$has_executors = $dto->executors->isNotEmpty();
 
-		return (!$has_author && !$has_executors) ? Status::DRAFT : Status::PREPARATION;
+		return (!$has_author || !$has_executors) ? Status::DRAFT : Status::PREPARATION;
 	}
 }

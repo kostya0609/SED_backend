@@ -1,13 +1,17 @@
 <?php
-
 namespace SED\Documents\Common\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
+use SED\Documents\Common\Enums\DocumentType;
+use SED\Documents\Common\Models\Document;
 use SED\Documents\Directive\Services\DirectiveService;
 use SED\Documents\ESZ\Services\ESZService;
 use SED\Documents\Review\Services\ReviewService;
 
+/**
+ * 
+ * TODO: Доработать и исправит ошибки в комманде удаления документов с иерархией
+ */
 class SEDDocumentsDelete extends Command
 {
 	/**
@@ -22,82 +26,92 @@ class SEDDocumentsDelete extends Command
 	 *
 	 * @var string
 	 */
-	protected $description = 'Удаление документов СЭД для которых были удалены шаблоны документов';
+	protected $description = 'Удаление документов СЭД';
+
+	private const FILE_DELETE_DOCUMENTS = __DIR__ . '/delete-documents.txt';
 
 	public function handle(ESZService $eszService, DirectiveService $directiveService, ReviewService $reviewService)
 	{
-		$bad_esz = $this->getBadEsz();
-		$bad_directives = $this->getBadDirectives();
-		$bad_reviews = $this->getBadReviews();
+		$numbers = $this->getNumbers();
 
-		$this->info('Найдены следующие документы для удаления:');
+		$documents = Document::query()
+			->whereIn('number', $numbers)
+			->get();
+
+		if ($documents->isEmpty()) {
+			$this->info("\nНе найдено документов по указанным номерам.");
+			return;
+		}
+
+		$this->info("\nКол-во: {$documents->count()}");
 
 		$this->table(
-			['Тип', 'Количество', 'ID'],
-			[
-				['ЭСЗ', $bad_esz->count(), $bad_esz->implode(', ')],
-				['Поручения', $bad_directives->count(), $bad_directives->implode(', ')],
-				['Ознакомления', $bad_reviews->count(), $bad_reviews->implode(', ')],
-			]
+			['ID', 'Номер', 'Тип', 'Статус', 'Дата создания'],
+			$documents->map(function ($document) {
+				return [
+					'id' => $document->id,
+					'number' => $document->number,
+					'type' => $document->type->title,
+					'status' => $document->status_title,
+					'created_at' => $document->created_at->format('Y-m-d H:i:s'),
+				];
+			})
 		);
 
-		if ($this->confirm('Вы уверены, что хотите удалить ЭСЗ?')) {
-			$bad_esz->each(function (int $id) use ($eszService) {
-				$eszService->forceDelete($id);
-			});
-			$this->info('ЭСЗ удалены.');
-		}
+		if ($this->confirm('Вы уверены, что хотите удалить эти документы?', false)) {
+			$eszs = $documents->filter(fn(Document $document) => $document->type_id === DocumentType::ESZ);
+			$directives = $documents->filter(fn(Document $document) => $document->type_id === DocumentType::DIRECTIVE);
+			$reviews = $documents->filter(fn(Document $document) => $document->type_id === DocumentType::REVIEW);
 
-		if ($this->confirm('Вы уверены, что хотите удалить поручения?')) {
-			$bad_directives->each(function (int $id) use ($directiveService) {
-				$directiveService->forceDelete($id);
-			});
-			$this->info('Поручения удалены.');
-		}
+			if ($eszs->count() > 0) {
+				foreach ($eszs as $esz) {
+					$eszService->forceDelete($esz->document_id);
+				}
 
-		if ($this->confirm('Вы уверены, что хотите удалить ознакомления?')) {
-			$bad_reviews->each(function (int $id) use ($reviewService) {
-				$reviewService->forceDelete($id);
-			});
-			$this->info('Ознакомления удалены.');
-		}
+				$this->info("\nУдалено ЭСЗ: {$eszs->count()}");
+			} else {
+				$this->info("\nНет ЭСЗ для удаления.");
+			}
 
-		$this->info('Операция завершена.');
+			if ($directives->count() > 0) {
+				foreach ($directives as $directive) {
+					$directiveService->forceDelete($directive->document_id);
+				}
+
+				$this->info("\nУдалено поручений: {$directives->count()}");
+			} else {
+				$this->info("\nНет поручений для удаления.");
+			}
+
+
+			if ($reviews->count() > 0) {
+				foreach ($reviews as $review) {
+					$reviewService->forceDelete($review->document_id);
+				}
+
+				$this->info("\nУдалено ознакомлений: {$reviews->count()}");
+			} else {
+				$this->info("\nНет ознакомлений для удаления.");
+			}
+		} else {
+			$this->info('Операция отменена.');
+			return;
+		}
 	}
 
-	public function getBadEsz(): Collection
+	private function getNumbers(): array
 	{
-		return \DB::table('l_esz')
-			->whereNotNull('tmp_doc_id')
-			->whereNotExists(function ($query) {
-				$query->select(\DB::raw(1))
-					->from('l_route_tmp_docs')
-					->whereRaw('l_route_tmp_docs.id = l_esz.tmp_doc_id');
-			})
-			->pluck('id');
-	}
+		if (!file_exists(self::FILE_DELETE_DOCUMENTS)) {
+			$this->error('Файл delete-documents.txt не найден в директории команды.');
+			$this->info('Создайте файл "delete-documents.txt" со списком номеров документов для удаления (по одному номеру на строку).');
+			exit(1);
+		}
 
-	public function getBadDirectives(): Collection
-	{
-		return \DB::table('l_directive')
-			->whereNotNull('tmp_doc_id')
-			->whereNotExists(function ($query) {
-				$query->select(\DB::raw(1))
-					->from('l_route_tmp_docs')
-					->whereRaw('l_route_tmp_docs.id = l_directive.tmp_doc_id');
-			})
-			->pluck('id');
-	}
+		$numbers = file_get_contents(self::FILE_DELETE_DOCUMENTS);
 
-	public function getBadReviews(): Collection
-	{
-		return \DB::table('l_review')
-			->whereNotNull('tmp_doc_id')
-			->whereNotExists(function ($query) {
-				$query->select(\DB::raw(1))
-					->from('l_route_tmp_docs')
-					->whereRaw('l_route_tmp_docs.id = l_review.tmp_doc_id');
-			})
-			->pluck('id');
+		return array_map('trim', array_filter(
+			explode("\n", $numbers),
+			'trim'
+		));
 	}
 }

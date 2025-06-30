@@ -19,6 +19,7 @@ class ReviewController extends BaseController
 
     public function preCreate(PreCreateReviewRequest $request)
     {
+        \Log::debug('Ознакомление-контроллер', ['id' => $request->root_tmp_id]);
         $review = $this->service->preCreate($request->createDto());
         return $this->sendResponse($review);
     }

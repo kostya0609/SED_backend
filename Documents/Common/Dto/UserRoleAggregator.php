@@ -28,6 +28,40 @@ class UserRoleAggregator
 		}
 	}
 
+	public static function createUser(int $user_id, bool $can_deletable = true): UserRoleAggregator
+	{
+		return new self([
+			'id' => $user_id . self::IS_USER,
+			'type_id' => self::IS_USER,
+			'user_id' => $user_id,
+			'static_role_id' => null,
+			'dynamic_role_id' => null,
+			'can_deletable' => $can_deletable,
+		]);
+	}
+	public static function createStaticRole(int $static_role_id, bool $can_deletable = true): UserRoleAggregator
+	{
+		return new self([
+			'id' => $static_role_id . self::IS_STATIC_ROLE,
+			'type_id' => self::IS_STATIC_ROLE,
+			'user_id' => null,
+			'static_role_id' => $static_role_id,
+			'dynamic_role_id' => null,
+			'can_deletable' => $can_deletable,
+		]);
+	}
+	public static function createDynamicRole(int $dynamic_role_id, bool $can_deletable = true): UserRoleAggregator
+	{
+		return new self([
+			'id' => $dynamic_role_id . self::IS_DYNAMIC_ROLE,
+			'type_id' => self::IS_DYNAMIC_ROLE,
+			'user_id' => null,
+			'static_role_id' => null,
+			'dynamic_role_id' => $dynamic_role_id,
+			'can_deletable' => $can_deletable,
+		]);
+	}
+
 	public function isUser()
 	{
 		return $this->type_id === self::IS_USER;

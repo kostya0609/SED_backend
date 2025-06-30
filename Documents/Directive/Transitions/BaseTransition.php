@@ -1,6 +1,7 @@
 <?php
 namespace SED\Documents\Directive\Transitions;
 
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
 use SED\Documents\Common\Dto\UpdateDocumentDto;
 use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Directive\Models\Directive;
@@ -23,7 +24,7 @@ abstract class BaseTransition
 	protected function execute(Directive $directive)
 	{
 		$directive = $directive->fresh(['status', 'creator']);
-		
+
 		$history = new CreateHistoryDto();
 		$history->directive_id = $directive->id;
 		$history->user_id = $directive->creator->user_id;
@@ -35,7 +36,10 @@ abstract class BaseTransition
 		$document_dto->initiator_id = $directive->creator->user_id;
 		$document_dto->status_title = $directive->status->title;
 		$document_dto->status_id = $directive->status->id;
+		$document_dto->content = $directive->contents->content;
 		$this->documentService->update($directive->id, $directive->type_id, $document_dto);
+
+		DocumentsHierarchyFacade::updateStatus($directive->document_hierarchy_id, $directive->status->title);
 
 		return $directive;
 	}

@@ -1,6 +1,9 @@
 <?php
+
+use App\Modules\SED\DocumentRoutes\Features\TemplatePartitions\Controllers\v1\TemplatePartitionController;
 use Illuminate\Support\Facades\Route;
 use SED\Common\Middleware\CheckAccessToAdmin;
+use SED\DocumentRoutes\AutomationSetting;
 use SED\DocumentRoutes\Features\ApprovalRoutes\Controllers\ApprovalRouteController;
 use SED\DocumentRoutes\Features\Automation\Controllers\AutomationController;
 use SED\DocumentRoutes\Features\DocumentTemplates\Controllers\v1\DocumentTemplatesController;
@@ -9,6 +12,7 @@ use SED\DocumentRoutes\Features\Routes\Controllers\v1\RouteController;
 
 Route::middleware(CheckAccessToAdmin::class)->prefix('sed/document-routes/v1')->group(function () {
 
+    Route::post('test', \SED\DocumentRoutes\Features\Automation\Services\AutomationItemService::class.'@autorun');
 	Route::prefix('/routes')->group(function () {
 		Route::post('/create', RouteController::class . '@create');
 		Route::post('/edit', RouteController::class . '@edit');
@@ -32,6 +36,13 @@ Route::middleware(CheckAccessToAdmin::class)->prefix('sed/document-routes/v1')->
 		Route::post('/get-by-static-role', DocumentTemplatesController::class . '@getByStaticRole')->withoutMiddleware(CheckAccessToAdmin::class);
 		Route::post('/get-by-dynamic-role', DocumentTemplatesController::class . '@getByDynamicRole')->withoutMiddleware(CheckAccessToAdmin::class);
 	});
+
+    Route::prefix('/template-partitions')->group(function()
+    {
+        Route::post('/create', TemplatePartitionController::class . '@create');
+        Route::post('/edit', TemplatePartitionController::class . '@edit');
+        Route::post('/delete', TemplatePartitionController::class . '@delete');
+    });
 
 	Route::prefix('/partitions')->group(function () {
 		Route::post('/create', PartitionController::class . '@create');

@@ -2,6 +2,8 @@
 
 namespace SED\Documents\Review\Services;
 
+use App\Modules\DocumentsHierarchy\DocumentsHierarchyFacade;
+use App\Modules\DocumentsHierarchy\Dto\CreateDocumentHierarchyDto;
 use Illuminate\Support\Collection;
 use App\Modules\File\Facades\FileFacade;
 use SED\Common\Exceptions\NotFoundException;
@@ -13,6 +15,7 @@ use SED\Documents\Common\Services\DocumentService;
 use SED\Documents\Review\Config\DecideProcessConfig;
 use App\Modules\Departments\Facades\DepartmentFacade;
 use App\Modules\Processes\Dto\Publics\CreateProcessDto;
+use SED\Documents\Review\Config\ReviewConfig;
 use SED\Documents\Review\Enums\{ParticipantType, Status, FileType};
 use SED\Documents\Common\Dto\{UpdateDocumentDto, CreateDocumentDto, UserItemDto};
 use SED\Documents\Review\Models\{Review, Participant, ReviewFile};
@@ -44,23 +47,23 @@ class ReviewService
 
 	public function preCreate(PreCreateReviewDto $dto): Review
 	{
-		$create_dto = new CreateReviewDto();
+        \Log::debug('Ознакомление-preCreate', ['id' => $dto->root_tmp_id]);
+
+        $create_dto = new CreateReviewDto();
 		$create_dto->content = $dto->content;
 		$create_dto->portfolio = $dto->portfolio;
 		$create_dto->user_id = $dto->user_id;
 		$create_dto->tmp_doc_id = $dto->tmp_doc_id;
 		$create_dto->theme_title = $dto->theme_title;
 		$create_dto->parent_document_id = $dto->parent_document_id;
+		$create_dto->document_hierarchy_id = $dto->document_hierarchy_id;
+		$create_dto->root_tmp_id = $dto->root_tmp_id;
 
 		$userRoleAggregatorService = new UserRoleAggregatorService();
 		$userRoleAggregatorService->setDocumentInitiator($dto->user_id);
 
 		if ($dto->receivers->isNotEmpty()) {
 			$create_dto->receivers = $userRoleAggregatorService->extractManyUsers($dto->receivers, $dto->user_id);
-
-			if ($create_dto->receivers->isEmpty()) {
-				throw new \LogicException('Получающие ознакомление не найдены!');
-			}
 		}
 
 		return $this->create($create_dto);
@@ -68,8 +71,11 @@ class ReviewService
 
 	public function create(CreateReviewDto $dto): Review
 	{
-		return \DB::transaction(function () use ($dto): Review {
-			$department = DepartmentFacade::getByUserId($dto->user_id);
+		return \DB::transaction(function () use ($dto): Review
+        {
+            \Log::debug('Ознакомление-create', ['id' => $dto->root_tmp_id]);
+
+            $department = DepartmentFacade::getByUserId($dto->user_id);
 
 			$review = new Review();
 			$review->status_id = $this->checkDraftAndReturnStatus($dto);
@@ -109,6 +115,19 @@ class ReviewService
 
 			$review->push();
 
+			$create_document_hierarchy_dto = new CreateDocumentHierarchyDto();
+			$create_document_hierarchy_dto->document_id = $review->id;
+			$create_document_hierarchy_dto->module_name = ReviewConfig::getModuleName();
+			$create_document_hierarchy_dto->title = $review->number;
+			$create_document_hierarchy_dto->status_title = $review->status->title;
+			$create_document_hierarchy_dto->link = '/sed/documents/review/detail/:id';
+			$create_document_hierarchy_dto->data = [
+				'theme' => $review->theme,
+			];
+			$hierarchy_document = DocumentsHierarchyFacade::create($create_document_hierarchy_dto, $dto->document_hierarchy_id);
+
+			DocumentsHierarchyFacade::addParticipants($hierarchy_document->id, $this->getDocumentParticipants($review->id));
+
 			$document_dto = new CreateDocumentDto();
 			$document_dto->document_id = $review->id;
 			$document_dto->number = $review->number;
@@ -121,13 +140,21 @@ class ReviewService
 			$document_dto->template_document = $review->templateDocument;
 			$document_dto->participants = $this->getDocumentParticipants($review->id);
 			$document_dto->tmp_doc_id = $review->tmp_doc_id;
-			$common_document = $this->documentService->create($document_dto);
+			$document_dto->content = $dto->content;
+			$document_dto->document_hierarchy_id = $hierarchy_document->id;
 
-			$history = new CreateHistoryDto();
+            $document_dto->root_tmp_id = $dto->root_tmp_id;
+
+            $common_document = $this->documentService->create($document_dto);
+
+
+
+            $history = new CreateHistoryDto();
 			$history->review_id = $review->id;
 			$history->user_id = $review->initiator->user_id;
 			$history->event = "Ознакомление создано";
 			$this->historyService->create($history);
+
 
 			ProcessFacade::create(
 				CreateProcessDto::create(
@@ -138,6 +165,7 @@ class ReviewService
 				)
 			);
 
+			$review->document_hierarchy_id = $hierarchy_document->id;
 			$review->common_document_id = $common_document->id;
 			$review->save();
 
@@ -197,7 +225,6 @@ class ReviewService
 				throw new \LogicException('Ознакомление невозможно редактировать на текущем статусе!');
 			}
 
-
 			$review->contents->content = $dto->content;
 			$review->contents->portfolio = $dto->portfolio;
 
@@ -226,6 +253,7 @@ class ReviewService
 			$document_dto->status_title = $review->status->title;
 			$document_dto->status_id = $review->status->id;
 			$document_dto->participants = $this->getDocumentParticipants($review->id);
+			$document_dto->content = $dto->content;
 			$this->documentService->update($review->id, $review->type_id, $document_dto);
 
 			$history = new CreateHistoryDto();
@@ -233,6 +261,9 @@ class ReviewService
 			$history->user_id = $review->initiator->user_id;
 			$history->event = "Ознакомление обновлено";
 			$this->historyService->create($history);
+
+			DocumentsHierarchyFacade::updateStatus($review->document_hierarchy_id, $review->status->title);
+			DocumentsHierarchyFacade::syncParticipants($review->document_hierarchy_id, $this->getDocumentParticipants($review->id));
 
 			return $review->fresh();
 		});
@@ -339,6 +370,7 @@ class ReviewService
 
 	public function forceDelete(int $id)
 	{
+		throw new \LogicException('Функционал принудительного удаления временно запрещен!');
 		\DB::transaction(function () use ($id) {
 			$review = Review::find($id);
 
@@ -358,6 +390,8 @@ class ReviewService
 				FileFacade::delete($file->file_id);
 			});
 
+			DocumentsHierarchyFacade::deleteSimple($review->document_hierarchy_id);
+
 			$review->delete();
 			$this->documentService->delete($review->id, $review->type_id);
 		});
@@ -367,7 +401,7 @@ class ReviewService
 	 * @param CreateReviewDto|UpdateReviewDto $dto
 	 * @return int
 	 */
-	public function checkDraftAndReturnStatus(object $dto): int
+	private function checkDraftAndReturnStatus(object $dto): int
 	{
 		if (!$dto instanceof CreateReviewDto && !$dto instanceof UpdateReviewDto) {
 			throw new \InvalidArgumentException('DTO должен быть экземпляром CreateReviewDto или UpdateReviewDto');

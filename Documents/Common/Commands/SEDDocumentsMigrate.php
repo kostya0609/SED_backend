@@ -214,7 +214,9 @@ class SEDDocumentsMigrate extends Command
 				$diff = array_diff(get_declared_classes(), $classes);
 				foreach ($diff as $class) {
 
-					if (false === strripos($class, '\\')) {
+					if (false === strripos($class, '\\')
+                        ||
+                        false === strripos($class,'Illuminate\Database\Migrations\Migration')) {
 						try {
 							$obj = new $class();
 							$obj->up();

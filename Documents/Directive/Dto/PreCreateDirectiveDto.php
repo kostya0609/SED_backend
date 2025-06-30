@@ -13,17 +13,24 @@ class PreCreateDirectiveDto
 {
 	public string $executed_at;
 	public string $content;
-	public ?string $portfolio;
+	public ?string $portfolio = null;
 	public int $creator_id;
 	public ?UserRoleAggregator $author = null;
 	public Collection $executors;
 	public Collection $controllers;
 	public Collection $observers;
-	public ?int $tmp_doc_id;
-	public ?string $theme_title;
-	public ?int $parent_document_id = null;
+	public ?int $tmp_doc_id = null;
+	public ?int $root_tmp_id = null;
 
-	public function __construct()
+    public ?string $theme_title = null;
+
+	/**
+	 * @deprecated Больше не используется для создания иерархии документов, так как используется отдельный модуль иерархии
+	 */
+	public ?int $parent_document_id = null;
+	public ?int $document_hierarchy_id = null;
+
+    public function __construct()
 	{
 		$this->executors = new Collection();
 		$this->controllers = new Collection();
